@@ -8,7 +8,7 @@ Suite académica de análisis para operaciones multidominio. Un solo archivo (`i
 
 | Módulo | Qué hace |
 | --- | --- |
-| **M1 · Cascada multidominio** | Mapa de 20 infraestructuras en 6 dominios (espacial, ciberespacio, terrestre, marítimo, aéreo y cognitivo). Simula cómo se propaga una falla, con cronología, puntos de estrangulamiento y la mitigación de mayor efecto. |
+| **M1 · Cascada multidominio** | Describe el incidente con tus palabras o elige uno de ejemplo. Mapa de 20 infraestructuras en 6 dominios (espacial, ciberespacio, terrestre, marítimo, aéreo y cognitivo). Simula cómo se propaga una falla, con cronología, puntos de estrangulamiento y la mitigación de mayor efecto. |
 | **M2 · Ejercicio de mesa** | Seis turnos con eventos en distintos dominios, decisiones con consecuencias diferidas y una evaluación final con bitácora. |
 | **M3 · Cursos de acción** | Matriz de decisión ponderada con prueba de sensibilidad de los pesos. |
 | **M4 · Dominio cognitivo** | Marca en un texto las señales de manipulación narrativa y sugiere pasos de verificación. |

@@ -236,11 +236,17 @@ footer .wrap{display:grid;gap:6px;max-width:1180px}
   <div class="mod-head">
     <span class="eyebrow">Módulo 1 · Efectos en cascada</span>
     <h2>Cascada multidominio</h2>
-    <p>Elige un incidente y observa cómo una falla en un dominio se transmite a infraestructuras de otros. Haz clic en cualquier nodo del mapa para marcarlo como falla inicial (moderada, grave o ninguna).</p>
+    <p>Describe un incidente o elige uno de ejemplo, y observa cómo una falla en un dominio se transmite a infraestructuras de otros. Haz clic en cualquier nodo del mapa para marcarlo como falla inicial (moderada, grave o ninguna).</p>
   </div>
   <div class="layout">
     <aside class="panel no-print">
-      <div class="field"><span class="lab">Incidente de partida</span><div class="chips" id="c-scen"></div></div>
+      <div class="field">
+        <label for="c-txt">Describe tu incidente</label>
+        <textarea id="c-txt" style="min-height:110px" maxlength="4000" placeholder="Ej.: Ciberataque deja sin sistema a la terminal de contenedores y provoca un apagón en el muelle. Circulan rumores en redes."></textarea>
+        <button class="btn" id="c-txt-go" type="button">Analizar incidente</button>
+        <p class="hint" id="c-txt-out">Escribe lo que pasó con tus palabras: la herramienta detecta las infraestructuras afectadas y su gravedad. Después puedes ajustar haciendo clic en los nodos.</p>
+      </div>
+      <div class="field"><span class="lab">O elige un incidente de ejemplo</span><div class="chips" id="c-scen"></div></div>
       <div class="field">
         <label for="c-res">Resiliencia general: <span class="mono" id="c-res-out">20 %</span></label>
         <input type="range" id="c-res" min="0" max="60" step="5" value="20">
@@ -465,7 +471,7 @@ const SCEN = [
   {n:'Tormenta solar severa', init:{gnss:.7, satcom:.8, elec:.4}}
 ];
 
-const C = { scen:0, init:{...SCEN[0].init}, res:.2, mit:new Set() };
+const C = { scen:0, init:{...SCEN[0].init}, res:.2, mit:new Set(), desc:'' };
 
 function simulate(init, res, mits){
   const imp = {}, t = {}, par = {};
@@ -561,8 +567,9 @@ function cRender(){
 
   // Reporte
   const top = r.derived.slice().sort((a,b) => r.imp[b]-r.imp[a]).slice(0,5);
-  const scenName = C.scen >= 0 ? SCEN[C.scen].n : 'Escenario personalizado';
+  const scenName = C.scen >= 0 ? SCEN[C.scen].n : C.desc ? 'Incidente capturado por el usuario' : 'Escenario personalizado';
   report($('#c-report'), 'Análisis de efectos en cascada', scenName, [
+    ...(C.desc ? [{h:'Descripción del incidente', p:C.desc}] : []),
     {h:'Fallas iniciales', items: Object.keys(C.init).map(k => `${NM[k].n} (${DOM[NM[k].d].n}), severidad ${pct(C.init[k])} %`)},
     {h:'Supuestos', items:[`Resiliencia general: ${pct(C.res)} %`, `Mitigaciones activas: ${C.mit.size ? MITS.filter(m => C.mit.has(m.id)).map(m => m.n).join('; ') : 'ninguna'}`, 'Se toma la ruta de mayor impacto hacia cada nodo; efectos menores a 10 % se descartan.']},
     {h:'Resumen', p:`El incidente alcanza ${affected.length} de ${NODES.length} nodos en ${doms.size} de 6 dominios. Hay ${crit} efectos derivados altos o críticos y el último aparece a las ${horizon} horas.`},
@@ -576,7 +583,7 @@ function cScenChips(){
   $('#c-scen').innerHTML = SCEN.map((sc,i) => `<button class="chipbtn" type="button" data-i="${i}" aria-pressed="${C.scen===i}">${esc(sc.n)}</button>`).join('') +
     (C.scen < 0 ? `<button class="chipbtn" type="button" aria-pressed="true" disabled>Personalizado</button>` : '');
 }
-$('#c-scen').onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; C.scen = +b.dataset.i; C.init = {...SCEN[C.scen].init}; cScenChips(); cRender(); };
+$('#c-scen').onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; C.scen = +b.dataset.i; C.init = {...SCEN[C.scen].init}; C.desc = ''; cScenChips(); cRender(); };
 $('#c-mit').insertAdjacentHTML('beforeend', MITS.map(m => `<label class="check"><input type="checkbox" id="c-mit-${m.id}" value="${m.id}"><span>${esc(m.n)}</span></label>`).join(''));
 $('#c-mit').onchange = e => { const v = e.target.value; e.target.checked ? C.mit.add(v) : C.mit.delete(v); cRender(); };
 $('#c-res').oninput = e => { C.res = e.target.value/100; $('#c-res-out').textContent = e.target.value + ' %'; cRender(); };
@@ -587,6 +594,56 @@ function toggleNode(id){
   C.scen = -1; cScenChips(); cRender();
   const g = document.querySelector(`#c-graph [data-id="${id}"]`); if (g) g.focus();
 }
+// Captura en texto libre: palabras clave → nodos afectados
+const KW = {
+  gnss:['gps','gnss','posicionamiento','spoofing','suplantacion de senal','interferencia de senal','jamming','navegacion satelital','geolocalizacion'],
+  satcom:['satcom','enlace satelital','comunicaciones satelitales','comunicacion satelital','starlink','satelite de comunicacion'],
+  meteo:['satelite meteorologico','satelites meteorologicos','pronostico','radar meteorologico','alerta meteorologica'],
+  redcc:['mando y control','c2','comunicaciones militares','red militar','radiocomunicacion','cadena de mando','centro de mando'],
+  scada:['scada','ransomware','ciberataque','hackeo','hacker','malware','virus informatico','sistema de control','gruas','automatizacion'],
+  dns:['nube','servidor','base de datos','pagina web','sitio web','internet','correo electronico','phishing','sistemas informaticos','filtracion de datos'],
+  elec:['apagon','electric','subestacion','energia','sin luz','corte de luz','red electrica','cfe','transformador'],
+  carr:['carretera','bloqueo','autopista','puente','deslave','camino','transporte terrestre','trafico vehicular'],
+  comb:['combustible','gasolina','diesel','pemex','pipa','hidrocarburo','refineria','ducto','derrame','petroleo','gas natural','gasoducto'],
+  hosp:['hospital','herido','lesionado','victima','salud','clinica','muerto','fallecido'],
+  puerto:['puerto','muelle','terminal','contenedor','atraque','aduana','portuari','naviera'],
+  vts:['trafico maritimo','canal de navegacion','bocana','capitania','vts','encall','colision de buques'],
+  patr:['patrulla','patrullaje','armada','marina','semar','guardia costera','embarcacion sospechosa','zee','zona economica','pesca ilegal','narco','contrabando'],
+  pesca:['pescador','pesca','cabotaje','lancha','embarcaciones menores','cooperativa pesquera'],
+  aero:['aeropuerto','vuelo','aerolinea','pista','aeronave','avion'],
+  atc:['control aereo','transito aereo','torre de control','radar aereo','espacio aereo','dron','drones'],
+  sar:['rescate','busqueda','naufragio','desaparecido','helicoptero','hombre al agua'],
+  voc:['vocero','comunicado','conferencia','gobierno informa','comunicacion oficial','autoridades informan'],
+  rum:['rumor','redes sociales','viral','desinformacion','fake','noticia falsa','whatsapp','video falso','mensaje en cadena'],
+  conf:['protesta','panico','manifestacion','enojo','desconfianza','compras de panico','saqueo','descontento']
+};
+const EVENTS = [
+  {kw:['huracan','tormenta tropical','ciclon','inundacion','marejada','tsunami'], nodes:{elec:.75, carr:.6, puerto:.6, aero:.5}},
+  {kw:['sismo','terremoto'], nodes:{elec:.7, carr:.7, hosp:.5, puerto:.5}},
+  {kw:['tormenta solar','tormenta geomagnetica','eyeccion de masa coronal'], nodes:{gnss:.7, satcom:.8, elec:.4}}
+];
+const kwRe = t => new RegExp('(?<![a-z0-9])' + escRe(t), 'g');
+function cParse(txt){
+  const n = Array.from(txt).map(normChar).join('');
+  const strong = /(grave|total|masiv|colaps|catastrof|critic|sever|paraliz|categoria [45]|destruid|sin servicio|inutiliz)/.test(n);
+  const mild = /(leve|menor|parcial|moderad|intermitente|breve|limitad)/.test(n);
+  const sev = strong ? .9 : mild ? .5 : .7;
+  const init = {}, why = {};
+  for (const ev of EVENTS){ const k = ev.kw.find(w => kwRe(w).test(n)); if (k) for (const id in ev.nodes){ init[id] = Math.max(init[id]||0, strong ? Math.min(.95, ev.nodes[id] + .15) : ev.nodes[id]); why[id] = k; } }
+  for (const id in KW){
+    const k = KW[id].find(w => kwRe(w).test(n));
+    if (k){ init[id] = Math.max(init[id]||0, sev); why[id] = why[id] || k; }
+  }
+  return {init, why, sev};
+}
+$('#c-txt-go').onclick = () => {
+  const txt = $('#c-txt').value.trim(), out = $('#c-txt-out');
+  if (txt.length < 10){ out.textContent = 'Escribe al menos una oración que describa qué pasó y dónde.'; return; }
+  const r = cParse(txt), ids = Object.keys(r.init);
+  if (!ids.length){ out.textContent = 'No reconocí infraestructuras en el texto. Menciona qué falló (por ejemplo: puerto, apagón, GPS, ciberataque, aeropuerto) o marca los nodos en el mapa.'; return; }
+  C.init = r.init; C.desc = txt; C.scen = -1; cScenChips(); cRender();
+  out.innerHTML = `Detecté ${ids.length} falla${ids.length>1?'s':''} inicial${ids.length>1?'es':''}: ` + ids.map(id => `<b>${esc(NM[id].s)}</b> (${pct(r.init[id])} %, por «${esc(r.why[id])}»)`).join(', ') + '. Ajusta haciendo clic en los nodos si hace falta.';
+};
 $('#c-graph').addEventListener('click', e => { const g = e.target.closest('.node'); if (g) toggleNode(g.dataset.id); });
 $('#c-graph').addEventListener('keydown', e => { const g = e.target.closest('.node'); if (g && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); toggleNode(g.dataset.id); } });
 
