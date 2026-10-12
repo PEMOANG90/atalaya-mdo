@@ -8,6 +8,8 @@ Suite académica de análisis para operaciones multidominio. Un solo archivo (`i
 
 Pega una noticia en **Análisis rápido** y pulsa **Analizar noticia**. El sitio muestra qué se afectó, qué puede venir después, qué hacer primero y qué tan confiable parece la noticia, con un reporte listo para copiar o imprimir.
 
+Los cuatro módulos se alimentan de la misma noticia: la cascada (M1) califica los cursos de acción (M3) y prepara un ejercicio de mesa (M2) que arranca con la noticia; la confiabilidad del texto (M4) ajusta la legitimidad y el peso de la comunicación.
+
 ## Módulos avanzados
 
 | Módulo | Qué hace |
