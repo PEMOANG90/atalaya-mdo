@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Suite académica de análisis para operaciones multidominio: cascada de efectos, ejercicio de mesa, comparador de cursos de acción y detector de dominio cognitivo.">
+<title>Atalaya MDO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Consola de estado mayor: franja de clasificación, barra de módulos, controles a la izquierda y lectura a la derecha; seis colores fijos, uno por dominio */
+:root{
+  --bg:#E8ECEE; --surface:#FBFCFC; --surface2:#F1F4F5; --ink:#0E1A24; --muted:#55636E; --line:#C8D1D6;
+  --accent:#0A5A78; --accent-ink:#FFFFFF; --band:#14324A; --band-ink:#E3EDF2;
+  --crit:#B3261E; --high:#CC5A24; --mod:#B88A12; --low:#5E8C6A; --ok:#2E7D4F;
+  --d-mar:#2361A6; --d-air:#7653B3; --d-ter:#62772A; --d-esp:#A0730C; --d-cib:#17806E; --d-inf:#B23F65;
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0B131A; --surface:#111C25; --surface2:#16242F; --ink:#E2E9ED; --muted:#93A2AD; --line:#26384A;
+  --accent:#62B6D6; --accent-ink:#06141C; --band:#0A2A3F; --band-ink:#CFE2EC;
+  --crit:#F0675C; --high:#F08D52; --mod:#E3BF4E; --low:#8CC29A; --ok:#5FC08A;
+  --d-mar:#6BA4E6; --d-air:#AE94E6; --d-ter:#A9BE5E; --d-esp:#E0B04A; --d-cib:#4CC7B0; --d-inf:#EB7FA2;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0B131A; --surface:#111C25; --surface2:#16242F; --ink:#E2E9ED; --muted:#93A2AD; --line:#26384A;
+  --accent:#62B6D6; --accent-ink:#06141C; --band:#0A2A3F; --band-ink:#CFE2EC;
+  --crit:#F0675C; --high:#F08D52; --mod:#E3BF4E; --low:#8CC29A; --ok:#5FC08A;
+  --d-mar:#6BA4E6; --d-air:#AE94E6; --d-ter:#A9BE5E; --d-esp:#E0B04A; --d-cib:#4CC7B0; --d-inf:#EB7FA2;
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.1}
+p{margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:20px}
+@media (max-width:520px){.wrap{padding-inline:16px}}
+.muted{color:var(--muted)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.band{background:var(--band);color:var(--band-ink);font-family:var(--f-mono);font-size:11px;letter-spacing:.14em;text-align:center;padding:6px 16px;text-transform:uppercase}
+.top{padding-block:28px 20px;border-bottom:1px solid var(--line);background:var(--surface)}
+.top .wrap{display:flex;flex-wrap:wrap;gap:20px 40px;align-items:flex-end;justify-content:space-between}
+.brand{display:flex;gap:14px;align-items:center}
+.brand svg{width:44px;height:44px;flex:none}
+.brand h1{font-size:40px;font-weight:700;letter-spacing:.01em}
+.brand p{font-family:var(--f-mono);font-size:12px;color:var(--muted);letter-spacing:.04em}
+.top .lede{max-width:52ch;color:var(--muted);font-size:14px;min-width:0}
+
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.tabs .wrap{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.tab{appearance:none;border:0;background:none;padding:14px 14px 12px;cursor:pointer;display:flex;gap:8px;align-items:baseline;white-space:nowrap;border-bottom:3px solid transparent;color:var(--muted)}
+.tab .code{font-family:var(--f-mono);font-size:11px}
+.tab .lbl{font-family:var(--f-display);font-size:19px;font-weight:600;letter-spacing:.01em}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;padding-block:14px 0;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:2px;background:var(--dc)}
+
+main{padding-block:20px 48px}
+.mod-head{display:grid;gap:6px;margin-bottom:18px;max-width:75ch}
+.mod-head h2{font-size:34px;font-weight:700}
+.mod-head p{color:var(--muted)}
+.layout{display:grid;grid-template-columns:300px minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px;display:grid;gap:16px;min-width:0}
+.panel h3{font-size:20px;font-weight:600}
+.field{display:grid;gap:8px}
+.field>label,.field>.lab,fieldset legend{font-size:12px;font-family:var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+fieldset{border:0;padding:0;margin:0;display:grid;gap:8px}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:14px;cursor:pointer}
+.check input{margin-top:4px;accent-color:var(--accent)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chipbtn{border:1px solid var(--line);background:var(--surface2);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer;text-align:left}
+.chipbtn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn{border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);border-radius:5px;padding:8px 14px;font-weight:600;font-size:14px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:default}
+.dchip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-family:var(--f-mono);white-space:nowrap}
+.dchip::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--dc)}
+.sev{display:inline-block;font-family:var(--f-mono);font-size:11px;padding:1px 7px;border-radius:3px;color:var(--surface);background:var(--sc);white-space:nowrap}
+
+.results{display:grid;gap:16px;min-width:0}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+@media (max-width:620px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--surface);padding:12px 14px;display:grid;gap:2px}
+.kpi b{font-family:var(--f-display);font-size:30px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi span{font-size:12px;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px;min-width:0}
+.card h3{font-size:20px;font-weight:600;margin-bottom:10px}
+.split{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px}
+@media (max-width:760px){.split{grid-template-columns:minmax(0,1fr)}}
+.scroll-x{overflow-x:auto}
+
+.graph{display:block;width:100%;min-width:760px;height:auto}
+.graph .colh{font-family:var(--f-mono);font-size:11px;letter-spacing:.1em;fill:var(--muted)}
+.graph .node{cursor:pointer}
+.graph .node rect.box{stroke-width:1.5}
+.graph .node text{font-family:var(--f-body);font-size:12px;fill:var(--ink)}
+.graph .node text.v{font-family:var(--f-mono);font-size:10.5px;fill:var(--muted)}
+.graph .node:focus{outline:none}
+.graph .node:focus-visible rect.box{stroke:var(--accent);stroke-width:3}
+.graph .edge{fill:none;stroke:var(--line);stroke-width:1}
+.graph .edge.on{stroke:var(--crit);stroke-width:2;opacity:.85}
+.hint{font-size:12px;color:var(--muted);margin-top:8px}
+
+table.t{width:100%;border-collapse:collapse;font-size:13.5px}
+table.t th{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500;text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+table.t td.mono{white-space:nowrap}
+table.t td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+table.t tr:last-child td{border-bottom:0}
+.bars{display:grid;gap:8px}
+.bar{display:grid;grid-template-columns:96px minmax(0,1fr) 44px;gap:10px;align-items:center;font-size:13px}
+.bar .track{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.bar .fill{height:100%;background:var(--dc,var(--accent));border-radius:4px;transition:width .35s ease}
+.bar .num{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:12px}
+ol.plain{margin:0;padding-left:20px;display:grid;gap:6px;font-size:14px}
+
+/* M2 */
+.ind{display:grid;gap:9px}
+.ind .bar{grid-template-columns:92px minmax(0,1fr) 34px}
+.delta{font-family:var(--f-mono);font-size:11px}
+.delta.up{color:var(--ok)} .delta.dn{color:var(--crit)}
+.clock{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.clock b{font-family:var(--f-display);font-size:26px;font-weight:600}
+.inject{border-left:4px solid var(--dc);display:grid;gap:12px}
+.inject h3{font-size:26px;margin:0}
+.opts{display:grid;gap:8px}
+.opt{border:1px solid var(--line);background:var(--surface2);border-radius:6px;padding:11px 14px;text-align:left;cursor:pointer;display:flex;gap:12px;align-items:flex-start}
+.opt .k{font-family:var(--f-mono);font-size:12px;color:var(--muted);padding-top:2px}
+.opt:hover:not(:disabled){border-color:var(--accent)}
+.opt:disabled{cursor:default;opacity:.55}
+.opt.sel{opacity:1;border-color:var(--accent);background:var(--surface);box-shadow:inset 0 0 0 1px var(--accent)}
+.feedback{background:var(--surface2);border-radius:6px;padding:12px 14px;display:grid;gap:8px;font-size:14px}
+.fx{display:flex;flex-wrap:wrap;gap:6px}
+.fx span{font-family:var(--f-mono);font-size:12px;padding:2px 8px;border-radius:3px;background:var(--surface);border:1px solid var(--line)}
+.notice{border:1px dashed var(--high);border-radius:6px;padding:10px 12px;font-size:14px}
+.score{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.score>b{font-family:var(--f-display);font-size:64px;line-height:1;font-weight:700;font-variant-numeric:tabular-nums}
+
+/* M3 */
+.coa-names{display:grid;gap:8px}
+.coa-names label{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;align-items:center;font-family:var(--f-mono);font-size:13px}
+input[type=text],select,textarea{background:var(--surface2);border:1px solid var(--line);border-radius:5px;padding:7px 9px;width:100%;min-width:0}
+.matrix select{width:auto;padding:4px 6px;font-family:var(--f-mono)}
+.matrix td.w{min-width:120px}
+.matrix input[type=range]{width:90px;vertical-align:middle}
+.cell-hm{display:inline-block;width:100%;text-align:center}
+.rank{display:grid;gap:10px}
+.rank .bar{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) 52px}
+.rank .bar .name{font-size:14px;overflow-wrap:anywhere}
+.verdict{font-size:14px;padding:10px 12px;border-radius:6px;background:var(--surface2)}
+
+/* M4 */
+textarea{min-height:190px;resize:vertical;line-height:1.5}
+.gauge{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.gauge>b{font-family:var(--f-display);font-size:56px;line-height:1;font-weight:700;font-variant-numeric:tabular-nums}
+.hltext{font-size:14.5px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}
+mark{background:color-mix(in srgb,var(--mc) 22%,transparent);color:inherit;border-bottom:2px solid var(--mc);padding:0 1px;border-radius:2px}
+.stats{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--muted)}
+.stats b{color:var(--ink);font-family:var(--f-mono);font-weight:500}
+
+/* Reporte */
+.report{margin-top:20px;background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--band);border-radius:6px;padding:18px;display:grid;gap:14px}
+.rep-head{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:flex-start}
+.rep-head h3{font-size:24px}
+.rep-actions{display:flex;gap:8px;flex-wrap:wrap}
+.rep-body{display:grid;gap:12px;font-size:14px;max-width:85ch}
+.rep-body h4{margin:0;font-family:var(--f-mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.rep-body ul{margin:4px 0 0;padding-left:18px;display:grid;gap:3px}
+.rep-note{font-size:12px;color:var(--muted)}
+
+footer{border-top:1px solid var(--line);padding-block:20px 36px;font-size:13px;color:var(--muted)}
+footer .wrap{display:grid;gap:6px;max-width:1180px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+@media print{
+  .band,.tabs,.legend,footer,.no-print,.rep-actions,.rep-note{display:none!important}
+  .mod[hidden]{display:none!important}
+  body{background:#fff;color:#000}
+  .mod .layout,.mod .mod-head{display:none!important}
+  .report{border:0;padding:0;margin:0}
+  .top{border:0;padding-block:0 12px}
+}
+</style>
+
+
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+</head>
+<body>
+<div class="band">Ejercicio académico · Sin clasificar · Datos ficticios</div>
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <polygon points="16,16 16,1 28.99,8.5" style="fill:var(--d-esp)"/>
+        <polygon points="16,16 28.99,8.5 28.99,23.5" style="fill:var(--d-cib)"/>
+        <polygon points="16,16 28.99,23.5 16,31" style="fill:var(--d-ter)"/>
+        <polygon points="16,16 16,31 3.01,23.5" style="fill:var(--d-mar)"/>
+        <polygon points="16,16 3.01,23.5 3.01,8.5" style="fill:var(--d-air)"/>
+        <polygon points="16,16 3.01,8.5 16,1" style="fill:var(--d-inf)"/>
+        <circle cx="16" cy="16" r="4.2" style="fill:var(--surface)"/>
+      </svg>
+      <div><h1>Atalaya MDO</h1><p>Suite de análisis para operaciones multidominio</p></div>
+    </div>
+    <p class="lede">Cuatro herramientas para estudiar una crisis desde los seis dominios: cómo se propaga, cómo se decide bajo presión, cómo se comparan respuestas y cómo se disputa la información. Todo corre en tu navegador con reglas locales, sin IA ni servidores.</p>
+  </div>
+</header>
+
+<nav class="tabs" aria-label="Módulos">
+  <div class="wrap" role="tablist">
+    <button class="tab" role="tab" data-tab="cascada" aria-selected="true"><span class="code">M1</span><span class="lbl">Cascada multidominio</span></button>
+    <button class="tab" role="tab" data-tab="ejercicio" aria-selected="false"><span class="code">M2</span><span class="lbl">Ejercicio de mesa</span></button>
+    <button class="tab" role="tab" data-tab="coa" aria-selected="false"><span class="code">M3</span><span class="lbl">Cursos de acción</span></button>
+    <button class="tab" role="tab" data-tab="cognitivo" aria-selected="false"><span class="code">M4</span><span class="lbl">Dominio cognitivo</span></button>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="legend" id="legend"></div>
+</div>
+
+<main class="wrap">
+
+<!-- M1 -->
+<section class="mod" id="cascada" role="tabpanel">
+  <div class="mod-head">
+    <span class="eyebrow">Módulo 1 · Efectos en cascada</span>
+    <h2>Cascada multidominio</h2>
+    <p>Elige un incidente y observa cómo una falla en un dominio se transmite a infraestructuras de otros. Haz clic en cualquier nodo del mapa para marcarlo como falla inicial (moderada, grave o ninguna).</p>
+  </div>
+  <div class="layout">
+    <aside class="panel no-print">
+      <div class="field"><span class="lab">Incidente de partida</span><div class="chips" id="c-scen"></div></div>
+      <div class="field">
+        <label for="c-res">Resiliencia general: <span class="mono" id="c-res-out">20 %</span></label>
+        <input type="range" id="c-res" min="0" max="60" step="5" value="20">
+        <span class="hint">Reduce la fuerza con la que cada dependencia transmite el daño.</span>
+      </div>
+      <fieldset id="c-mit"><legend>Medidas de mitigación</legend></fieldset>
+      <button class="btn ghost" id="c-clear" type="button">Quitar todas las fallas</button>
+    </aside>
+    <div class="results">
+      <div class="kpis" id="c-kpis"></div>
+      <div class="card">
+        <h3>Mapa de dependencias</h3>
+        <div class="scroll-x"><svg class="graph" id="c-graph" viewBox="0 0 955 292" role="img" aria-label="Mapa de dependencias entre infraestructuras por dominio"></svg></div>
+        <p class="hint">Las líneas rojas muestran la ruta de mayor impacto hacia cada nodo afectado. El relleno indica la severidad.</p>
+      </div>
+      <div class="split">
+        <div class="card"><h3>Cronología estimada</h3><div class="scroll-x"><table class="t" id="c-time"></table></div></div>
+        <div class="card" style="display:grid;gap:18px;align-content:start">
+          <div><h3>Impacto por dominio</h3><div class="bars" id="c-dom"></div></div>
+          <div><h3>Puntos de estrangulamiento</h3><ol class="plain" id="c-choke"></ol></div>
+          <div><h3>Mitigación con mayor efecto</h3><ol class="plain" id="c-best"></ol></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="report" id="c-report"></div>
+</section>
+
+<!-- M2 -->
+<section class="mod" id="ejercicio" role="tabpanel" hidden>
+  <div class="mod-head">
+    <span class="eyebrow">Módulo 2 · Simulación por turnos</span>
+    <h2>Ejercicio de mesa</h2>
+    <p>Seis turnos de seis horas. En cada uno llega un evento en algún dominio y eliges una respuesta sin ver sus efectos. Algunas decisiones tienen consecuencias diferidas que aparecen turnos después.</p>
+  </div>
+  <div class="layout">
+    <aside class="panel no-print">
+      <div class="field"><span class="lab">Escenario</span><div class="chips" id="w-scen"></div></div>
+      <p class="muted" id="w-brief" style="font-size:14px"></p>
+      <div class="clock"><span class="eyebrow">Reloj del ejercicio</span><b class="mono" id="w-clock"></b></div>
+      <div class="ind" id="w-ind"></div>
+      <button class="btn ghost" id="w-new" type="button">Nuevo ejercicio</button>
+    </aside>
+    <div class="results" id="w-main"></div>
+  </div>
+  <div class="report" id="w-report"></div>
+</section>
+
+<!-- M3 -->
+<section class="mod" id="coa" role="tabpanel" hidden>
+  <div class="mod-head">
+    <span class="eyebrow">Módulo 3 · Matriz de decisión ponderada</span>
+    <h2>Comparador de cursos de acción</h2>
+    <p>Califica cada curso de acción del 1 al 5 en cada criterio y ajusta cuánto pesa cada criterio. La herramienta ordena las opciones y prueba si la ganadora cambia cuando los pesos se mueven.</p>
+  </div>
+  <div class="layout">
+    <aside class="panel no-print">
+      <div class="field"><span class="lab">Caso de ejemplo</span><div class="chips" id="a-case"></div></div>
+      <div class="field"><label for="a-sit">Situación</label><textarea id="a-sit" style="min-height:90px"></textarea></div>
+      <div class="field"><span class="lab">Cursos de acción</span><div class="coa-names" id="a-names"></div></div>
+    </aside>
+    <div class="results">
+      <div class="card"><h3>Matriz de evaluación</h3><div class="scroll-x"><table class="t matrix" id="a-matrix"></table></div><p class="hint">Escala: 1 = muy desfavorable, 5 = muy favorable. En riesgo y costo, 5 significa bajo.</p></div>
+      <div class="split">
+        <div class="card"><h3>Resultado</h3><div class="rank" id="a-rank"></div></div>
+        <div class="card"><h3>Prueba de sensibilidad</h3><div id="a-sens" style="display:grid;gap:10px;font-size:14px"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="report" id="a-report"></div>
+</section>
+
+<!-- M4 -->
+<section class="mod" id="cognitivo" role="tabpanel" hidden>
+  <div class="mod-head">
+    <span class="eyebrow">Módulo 4 · Análisis de contenido</span>
+    <h2>Detector de dominio cognitivo</h2>
+    <p>Pega una noticia, publicación o mensaje de cadena. La herramienta busca señales frecuentes de manipulación narrativa y las marca en el texto. Indica señales, no verdad o falsedad: el contenido siempre debe verificarse con fuentes.</p>
+  </div>
+  <div class="layout">
+    <aside class="panel no-print">
+      <div class="field"><span class="lab">Textos de ejemplo</span><div class="chips" id="g-ex"></div></div>
+      <div class="field"><label for="g-text">Texto a analizar</label><textarea id="g-text" maxlength="12000"></textarea><span class="hint"><span id="g-count" class="mono">0</span> / 12 000 caracteres · se analiza mientras escribes</span></div>
+      <button class="btn ghost" id="g-clear" type="button">Limpiar</button>
+    </aside>
+    <div class="results">
+      <div class="card">
+        <div class="gauge" id="g-gauge"></div>
+      </div>
+      <div class="split">
+        <div class="card"><h3>Texto marcado</h3><div class="hltext" id="g-hl"></div></div>
+        <div class="card"><h3>Indicadores</h3><div class="bars" id="g-ind"></div></div>
+      </div>
+      <div class="card"><h3>Pasos de verificación sugeridos</h3><ol class="plain" id="g-rec"></ol></div>
+    </div>
+  </div>
+  <div class="report" id="g-report"></div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><b>Atalaya MDO</b> es un proyecto académico sobre operaciones multidominio. Los modelos, pesos, escenarios y textos de ejemplo son ficticios y simplificados; los resultados son propuestas para discusión, no predicciones ni evaluaciones oficiales.</p>
+    <p>Funciona sin conexión, no guarda tus datos en ningún servidor y puede publicarse como un solo archivo en GitHub Pages.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pct = v => Math.round(v*100);
+const inFrame = (() => { try { return window.self !== window.top; } catch(e){ return true; } })();
+
+const DOM = {
+  ESP:{n:'Espacial'}, CIB:{n:'Ciberespacio'}, TER:{n:'Terrestre'},
+  MAR:{n:'Marítimo'}, AIR:{n:'Aéreo'}, INF:{n:'Cognitivo'}
+};
+const COLS = ['ESP','CIB','TER','MAR','AIR','INF'];
+const dc = d => `var(--d-${d.toLowerCase()})`;
+const chip = d => `<span class="dchip" style="--dc:${dc(d)}">${DOM[d].n}</span>`;
+const sevOf = v => v >= .66 ? ['Crítico','var(--crit)'] : v >= .4 ? ['Alto','var(--high)'] : v >= .2 ? ['Moderado','var(--mod)'] : ['Bajo','var(--low)'];
+const sevTag = v => { const [l,c] = sevOf(v); return `<span class="sev" style="--sc:${c}">${l}</span>`; };
+
+$('#legend').innerHTML = COLS.map(d => `<span><i style="--dc:${dc(d)}"></i>${DOM[d].n}</span>`).join('');
+
+/* ---------- Reporte compartido ---------- */
+function report(el, title, sub, sections){
+  const now = new Date().toLocaleString('es-MX', {dateStyle:'long', timeStyle:'short'});
+  let html = '', text = `${title.toUpperCase()}\n${sub}\nGenerado: ${now}\n`;
+  for (const s of sections){
+    html += `<div><h4>${esc(s.h)}</h4>`;
+    text += `\n${s.h.toUpperCase()}\n`;
+    if (s.p){ html += `<p>${esc(s.p)}</p>`; text += s.p + '\n'; }
+    if (s.items && s.items.length){ html += '<ul>' + s.items.map(i => `<li>${esc(i)}</li>`).join('') + '</ul>'; text += s.items.map(i => '- ' + i).join('\n') + '\n'; }
+    html += '</div>';
+  }
+  text += '\nAtalaya MDO · Ejercicio académico con datos ficticios. Resultado orientativo, pendiente de revisión.';
+  el.innerHTML = `<div class="rep-head"><div><span class="eyebrow">Reporte · ${esc(now)}</span><h3>${esc(title)}</h3><p class="muted">${esc(sub)}</p></div>
+    <div class="rep-actions"><button class="btn" type="button" data-copy>Copiar reporte</button>${inFrame ? '' : '<button class="btn ghost" type="button" data-print>Imprimir / Guardar PDF</button>'}</div></div>
+    <div class="rep-body">${html}</div>
+    <p class="rep-note">Borrador orientativo generado con reglas locales. Revísalo antes de usarlo.${inFrame ? ' El botón para imprimir o guardar en PDF aparece al abrir la página publicada en GitHub Pages o como archivo local.' : ''}</p>`;
+  const cb = el.querySelector('[data-copy]');
+  cb.onclick = () => {
+    const done = ok => { cb.textContent = ok ? 'Copiado' : 'Selecciona y copia el texto'; setTimeout(() => cb.textContent = 'Copiar reporte', 1800); };
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(() => done(true), () => { selectBody(el); done(false); });
+    } else { selectBody(el); done(false); }
+  };
+  const pb = el.querySelector('[data-print]');
+  if (pb) pb.onclick = () => window.print();
+}
+function selectBody(el){ const r = document.createRange(); r.selectNodeContents(el.querySelector('.rep-body')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+
+/* ---------- Pestañas ---------- */
+const TABS = ['cascada','ejercicio','coa','cognitivo'];
+function showTab(id){
+  if (!TABS.includes(id)) id = 'cascada';
+  document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === id));
+  document.querySelectorAll('.mod').forEach(s => s.hidden = s.id !== id);
+  try { localStorage.setItem('atalaya-tab', id); } catch(e){}
+  if (location.hash.slice(1) !== id) { try { history.replaceState(null, '', '#' + id); } catch(e){} }
+}
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+/* =========================================================
+   M1 · CASCADA MULTIDOMINIO
+   ========================================================= */
+const NODES = [
+  {id:'gnss', d:'ESP', s:'GNSS', n:'Constelación GNSS (posicionamiento y hora)'},
+  {id:'satcom', d:'ESP', s:'Satcom', n:'Comunicaciones satelitales'},
+  {id:'meteo', d:'ESP', s:'Satélites meteo', n:'Satélites meteorológicos'},
+  {id:'redcc', d:'CIB', s:'Mando y control', n:'Red de mando y control'},
+  {id:'scada', d:'CIB', s:'SCADA / OT', n:'Sistemas de control industrial (SCADA)'},
+  {id:'dns', d:'CIB', s:'Datos y nube', n:'Servicios de datos y nube'},
+  {id:'elec', d:'TER', s:'Red eléctrica', n:'Red eléctrica regional'},
+  {id:'carr', d:'TER', s:'Carreteras', n:'Corredores carreteros'},
+  {id:'comb', d:'TER', s:'Combustible', n:'Terminal de almacenamiento de combustible'},
+  {id:'hosp', d:'TER', s:'Hospitales', n:'Red hospitalaria'},
+  {id:'puerto', d:'MAR', s:'Puerto', n:'Operación portuaria'},
+  {id:'vts', d:'MAR', s:'Tráfico marítimo', n:'Control de tráfico marítimo (VTS)'},
+  {id:'patr', d:'MAR', s:'Patrullaje costero', n:'Patrullaje costero'},
+  {id:'pesca', d:'MAR', s:'Pesca y cabotaje', n:'Flota pesquera y de cabotaje'},
+  {id:'aero', d:'AIR', s:'Aeropuerto', n:'Aeropuerto internacional'},
+  {id:'atc', d:'AIR', s:'Tránsito aéreo', n:'Control de tránsito aéreo'},
+  {id:'sar', d:'AIR', s:'Rescate aéreo', n:'Búsqueda y rescate aéreo'},
+  {id:'voc', d:'INF', s:'Vocería oficial', n:'Comunicación pública oficial'},
+  {id:'rum', d:'INF', s:'Rumores en redes', n:'Ecosistema de rumores en redes'},
+  {id:'conf', d:'INF', s:'Confianza pública', n:'Confianza ciudadana en las autoridades'}
+];
+const NM = Object.fromEntries(NODES.map(n => [n.id, n]));
+// f → t, w = fuerza de la dependencia (0–1), h = horas hasta que el efecto se manifiesta
+const EDGES = [
+  ['gnss','vts',.7,1],['gnss','atc',.6,1],['gnss','patr',.5,2],['gnss','pesca',.6,2],['gnss','redcc',.3,2],
+  ['satcom','redcc',.6,1],['satcom','patr',.5,2],['satcom','sar',.4,2],
+  ['meteo','sar',.4,6],['meteo','pesca',.35,6],['meteo','aero',.3,4],
+  ['redcc','patr',.6,2],['redcc','sar',.5,3],['redcc','voc',.3,4],
+  ['scada','puerto',.75,1],['scada','elec',.6,2],['scada','comb',.5,2],
+  ['dns','voc',.4,2],['dns','puerto',.35,3],['dns','aero',.35,3],
+  ['elec','hosp',.65,2],['elec','puerto',.6,1],['elec','aero',.55,1],['elec','scada',.3,1],['elec','dns',.45,2],['elec','vts',.45,2],['elec','rum',.5,3],
+  ['carr','comb',.5,6],['carr','hosp',.45,4],['carr','puerto',.45,6],
+  ['comb','patr',.55,12],['comb','aero',.5,12],['comb','pesca',.45,12],['comb','sar',.5,12],
+  ['puerto','comb',.4,12],['puerto','pesca',.35,8],['puerto','rum',.35,6],
+  ['vts','puerto',.6,2],['atc','aero',.8,1],['aero','sar',.3,3],['aero','rum',.4,4],
+  ['patr','conf',.35,12],['hosp','conf',.45,8],['voc','conf',.55,4],['rum','conf',.6,4],['rum','voc',.3,2]
+].map(([f,t,w,h]) => ({f,t,w,h}));
+
+const MITS = [
+  {id:'nav', n:'Navegación alterna (radar, carta, eLoran)', w: e => e.f==='gnss' ? .35 : 1},
+  {id:'ot', n:'Redes OT segmentadas con respaldo fuera de línea', w: e => (e.f==='scada'||e.f==='dns') ? .4 : 1},
+  {id:'ener', n:'Plantas de emergencia en puerto, hospitales y aeropuerto', w: e => (e.f==='elec' && ['hosp','puerto','aero','vts'].includes(e.t)) ? .3 : 1},
+  {id:'hf', n:'Enlaces redundantes HF/VHF para unidades', w: e => e.f==='satcom' ? .4 : 1},
+  {id:'comb', n:'Reserva de combustible para 72 h', w: e => e.f==='comb' ? .5 : 1, h: e => e.f==='comb' ? 48 : 0},
+  {id:'voc', n:'Vocería unificada y temprana', w: e => (e.t==='rum') ? .5 : (e.f==='rum' && e.t==='conf') ? .4 : 1}
+];
+
+const SCEN = [
+  {n:'Interferencia GNSS en el litoral', init:{gnss:.9}},
+  {n:'Ciberataque a la terminal portuaria', init:{scada:.85, dns:.5}},
+  {n:'Huracán categoría 4', init:{elec:.8, carr:.7, puerto:.6, aero:.55}},
+  {n:'Tormenta solar severa', init:{gnss:.7, satcom:.8, elec:.4}}
+];
+
+const C = { scen:0, init:{...SCEN[0].init}, res:.2, mit:new Set() };
+
+function simulate(init, res, mits){
+  const imp = {}, t = {}, par = {};
+  for (const k in init){ imp[k] = init[k]; t[k] = 0; par[k] = null; }
+  const ml = MITS.filter(m => mits.has(m.id));
+  let changed = true, it = 0;
+  while (changed && it++ < 60){
+    changed = false;
+    for (const e of EDGES){
+      const src = imp[e.f]; if (!src || e.t in init) continue;
+      let w = e.w, h = e.h;
+      for (const m of ml){ w *= m.w(e); if (m.h) h += m.h(e); }
+      const v = src * w * (1 - res);
+      if (v < .1) continue;
+      const cur = imp[e.t] || 0;
+      if (v > cur + .004 || (Math.abs(v - cur) <= .004 && t[e.f] + h < t[e.t])){
+        imp[e.t] = v; t[e.t] = t[e.f] + h; par[e.t] = e.f; changed = true;
+      }
+    }
+  }
+  const derived = Object.keys(imp).filter(k => !(k in init));
+  const total = derived.reduce((a,k) => a + imp[k], 0);
+  return {imp, t, par, derived, total};
+}
+
+// distribución de nodos en columnas por dominio
+const POS = {};
+COLS.forEach((d, ci) => NODES.filter(n => n.d === d).forEach((n, j) => { POS[n.id] = {x: 14 + ci*157, y: 40 + j*62}; }));
+const NW = 132, NH = 46;
+
+function edgePath(e){
+  const a = POS[e.f], b = POS[e.t];
+  const ay = a.y + NH/2, by = b.y + NH/2;
+  if (b.x > a.x){ const x1 = a.x+NW, x2 = b.x, dx = Math.max(30,(x2-x1)/2); return `M${x1},${ay} C${x1+dx},${ay} ${x2-dx},${by} ${x2},${by}`; }
+  if (b.x < a.x){ const x1 = a.x, x2 = b.x+NW, dx = Math.max(30,(x1-x2)/2); return `M${x1},${ay} C${x1-dx},${ay} ${x2+dx},${by} ${x2},${by}`; }
+  const x = a.x+NW; return `M${x},${ay} C${x+26},${ay} ${x+26},${by} ${x},${by}`;
+}
+
+function cRender(){
+  const r = simulate(C.init, C.res, C.mit);
+  // grafo
+  let s = `<defs><marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" style="fill:var(--crit)"/></marker></defs>`;
+  COLS.forEach((d, ci) => { s += `<text class="colh" x="${14+ci*157}" y="22" style="fill:${dc(d)}">${DOM[d].n.toUpperCase()}</text>`; });
+  for (const e of EDGES){ const on = r.par[e.t] === e.f; if (!on) s += `<path class="edge" d="${edgePath(e)}"/>`; }
+  for (const e of EDGES){ if (r.par[e.t] === e.f) s += `<path class="edge on" marker-end="url(#ah)" d="${edgePath(e)}"/>`; }
+  for (const n of NODES){
+    const p = POS[n.id], v = r.imp[n.id] || 0, ini = n.id in C.init;
+    const fill = v ? `color-mix(in srgb, var(--crit) ${Math.round(12 + v*68)}%, var(--surface))` : 'var(--surface)';
+    const txt = v >= .5 ? 'var(--surface)' : 'var(--ink)';
+    const label = ini ? `falla inicial ${pct(v)} %` : v ? `T+${r.t[n.id]} h · ${pct(v)} %` : 'sin efecto';
+    s += `<g class="node" data-id="${n.id}" tabindex="0" role="button" aria-label="${esc(n.n)}: ${label}">
+      <rect class="box" x="${p.x}" y="${p.y}" width="${NW}" height="${NH}" rx="5" style="fill:${fill};stroke:${ini ? 'var(--ink)' : dc(n.d)};stroke-dasharray:${ini ? '4 3' : 'none'}"/>
+      <rect x="${p.x}" y="${p.y}" width="4" height="${NH}" rx="2" style="fill:${dc(n.d)}"/>
+      <text x="${p.x+12}" y="${p.y+19}" style="fill:${txt}">${esc(n.s)}</text>
+      <text class="v" x="${p.x+12}" y="${p.y+36}" style="fill:${txt};opacity:.85">${label}</text></g>`;
+  }
+  $('#c-graph').innerHTML = s;
+
+  // KPIs
+  const affected = Object.keys(r.imp);
+  const doms = new Set(affected.map(k => NM[k].d));
+  const horizon = r.derived.length ? Math.max(...r.derived.map(k => r.t[k])) : 0;
+  const crit = r.derived.filter(k => r.imp[k] >= .4).length;
+  $('#c-kpis').innerHTML = [
+    [`${affected.length}<small class="muted" style="font-size:16px"> / ${NODES.length}</small>`, 'nodos afectados'],
+    [`${doms.size}<small class="muted" style="font-size:16px"> / 6</small>`, 'dominios alcanzados'],
+    [crit, 'efectos derivados altos o críticos'],
+    [`T+${horizon} h`, 'último efecto en llegar']
+  ].map(([b,l]) => `<div class="kpi"><b>${b}</b><span>${l}</span></div>`).join('');
+
+  // Cronología
+  const rows = affected.slice().sort((a,b) => r.t[a] - r.t[b] || r.imp[b] - r.imp[a]);
+  $('#c-time').innerHTML = `<thead><tr><th>Hora</th><th>Nodo</th><th>Dominio</th><th>Severidad</th><th>Vía</th></tr></thead><tbody>` +
+    (rows.length ? rows.map(k => `<tr><td class="mono">T+${r.t[k]} h</td><td>${esc(NM[k].n)}</td><td>${chip(NM[k].d)}</td><td>${sevTag(r.imp[k])} <span class="mono muted">${pct(r.imp[k])}</span></td><td class="muted">${r.par[k] ? esc(NM[r.par[k]].s) : 'falla inicial'}</td></tr>`).join('')
+      : `<tr><td colspan="5" class="muted">Sin fallas activas. Elige un incidente o haz clic en un nodo del mapa.</td></tr>`) + '</tbody>';
+
+  // Dominios
+  const domImp = COLS.map(d => { const ns = NODES.filter(n => n.d === d); return {d, v: ns.reduce((a,n) => a + (r.imp[n.id]||0), 0) / ns.length}; });
+  $('#c-dom').innerHTML = domImp.map(x => `<div class="bar" style="--dc:${dc(x.d)}"><span>${DOM[x.d].n}</span><div class="track"><div class="fill" style="width:${pct(x.v)}%"></div></div><span class="num">${pct(x.v)} %</span></div>`).join('');
+
+  // Estrangulamientos: cuántos nodos dependen de cada uno en el árbol de propagación
+  const desc = {};
+  for (const k of r.derived){ let p = r.par[k], guard = 0; while (p && guard++ < 30){ desc[p] = (desc[p]||0) + 1; p = r.par[p]; } }
+  const choke = Object.entries(desc).sort((a,b) => b[1]-a[1]).slice(0,3);
+  $('#c-choke').innerHTML = choke.length ? choke.map(([k,c]) => `<li><b>${esc(NM[k].s)}</b> ${chip(NM[k].d)}<br><span class="muted">transmite el daño a ${c} nodo${c>1?'s':''} aguas abajo</span></li>`).join('') : '<li class="muted">Sin propagación.</li>';
+
+  // Mejor mitigación
+  const best = MITS.filter(m => !C.mit.has(m.id)).map(m => {
+    const alt = simulate(C.init, C.res, new Set([...C.mit, m.id]));
+    return {m, red: r.total ? (r.total - alt.total) / r.total : 0};
+  }).filter(x => x.red > .01).sort((a,b) => b.red - a.red).slice(0,2);
+  $('#c-best').innerHTML = best.length ? best.map(x => `<li>${esc(x.m.n)}<br><span class="muted">reduciría el impacto derivado ${pct(x.red)} %</span></li>`).join('') : '<li class="muted">Ninguna medida adicional reduce el impacto actual.</li>';
+
+  // Reporte
+  const top = r.derived.slice().sort((a,b) => r.imp[b]-r.imp[a]).slice(0,5);
+  const scenName = C.scen >= 0 ? SCEN[C.scen].n : 'Escenario personalizado';
+  report($('#c-report'), 'Análisis de efectos en cascada', scenName, [
+    {h:'Fallas iniciales', items: Object.keys(C.init).map(k => `${NM[k].n} (${DOM[NM[k].d].n}), severidad ${pct(C.init[k])} %`)},
+    {h:'Supuestos', items:[`Resiliencia general: ${pct(C.res)} %`, `Mitigaciones activas: ${C.mit.size ? MITS.filter(m => C.mit.has(m.id)).map(m => m.n).join('; ') : 'ninguna'}`, 'Se toma la ruta de mayor impacto hacia cada nodo; efectos menores a 10 % se descartan.']},
+    {h:'Resumen', p:`El incidente alcanza ${affected.length} de ${NODES.length} nodos en ${doms.size} de 6 dominios. Hay ${crit} efectos derivados altos o críticos y el último aparece a las ${horizon} horas.`},
+    {h:'Efectos derivados más severos', items: top.length ? top.map(k => `${NM[k].n}: ${sevOf(r.imp[k])[0].toLowerCase()} (${pct(r.imp[k])} %) a T+${r.t[k]} h, vía ${NM[r.par[k]].s}`) : ['Sin efectos derivados.']},
+    {h:'Puntos de estrangulamiento', items: choke.length ? choke.map(([k,c]) => `${NM[k].n}: transmite el daño a ${c} nodo${c>1?'s':''}`) : ['Sin propagación.']},
+    {h:'Recomendación', items: best.length ? best.map(x => `Implementar "${x.m.n}": reduce el impacto derivado ${pct(x.red)} %`) : ['Mantener las medidas actuales y revisar supuestos con especialistas.']}
+  ]);
+}
+
+function cScenChips(){
+  $('#c-scen').innerHTML = SCEN.map((sc,i) => `<button class="chipbtn" type="button" data-i="${i}" aria-pressed="${C.scen===i}">${esc(sc.n)}</button>`).join('') +
+    (C.scen < 0 ? `<button class="chipbtn" type="button" aria-pressed="true" disabled>Personalizado</button>` : '');
+}
+$('#c-scen').onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; C.scen = +b.dataset.i; C.init = {...SCEN[C.scen].init}; cScenChips(); cRender(); };
+$('#c-mit').insertAdjacentHTML('beforeend', MITS.map(m => `<label class="check"><input type="checkbox" id="c-mit-${m.id}" value="${m.id}"><span>${esc(m.n)}</span></label>`).join(''));
+$('#c-mit').onchange = e => { const v = e.target.value; e.target.checked ? C.mit.add(v) : C.mit.delete(v); cRender(); };
+$('#c-res').oninput = e => { C.res = e.target.value/100; $('#c-res-out').textContent = e.target.value + ' %'; cRender(); };
+$('#c-clear').onclick = () => { C.init = {}; C.scen = -1; cScenChips(); cRender(); };
+function toggleNode(id){
+  const cur = C.init[id];
+  if (cur === undefined) C.init[id] = .5; else if (cur < .8) C.init[id] = .9; else delete C.init[id];
+  C.scen = -1; cScenChips(); cRender();
+  const g = document.querySelector(`#c-graph [data-id="${id}"]`); if (g) g.focus();
+}
+$('#c-graph').addEventListener('click', e => { const g = e.target.closest('.node'); if (g) toggleNode(g.dataset.id); });
+$('#c-graph').addEventListener('keydown', e => { const g = e.target.closest('.node'); if (g && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); toggleNode(g.dataset.id); } });
+
+/* =========================================================
+   M2 · EJERCICIO DE MESA
+   ========================================================= */
+const IND = ['MAR','AIR','TER','ESP','CIB','INF'];
+const XN = {REC:'Recursos', LEG:'Legitimidad'};
+const indName = k => DOM[k] ? DOM[k].n : XN[k];
+const INJ = [
+ {d:'CIB', t:'Ransomware en el sistema portuario', s:'El sistema de programación de atraques muestra un mensaje de rescate. Hay nueve buques en espera y la terminal opera a ciegas.', o:[
+  {t:'Aislar la red y operar el puerto en modo manual', fx:{CIB:10,MAR:-10,REC:-10}, n:'Contener primero limita el daño aunque cueste ritmo operativo.'},
+  {t:'Pagar el rescate para recuperar el servicio rápido', fx:{MAR:5,LEG:-15}, later:{in:2,fx:{CIB:-15,INF:-10},m:'Los atacantes regresan y filtran datos de navieras.'}, n:'Pagar no garantiza la recuperación y alienta nuevos ataques.'},
+  {t:'Mantener la operación mientras se investiga', fx:{CIB:-10}, later:{in:1,fx:{CIB:-10,MAR:-10},m:'El cifrado alcanza el sistema de aduanas.'}, n:'Seguir operando sin contener deja que el ataque se propague.'}]},
+ {d:'ESP', t:'Posiciones GNSS desviadas', s:'Catorce buques reportan posiciones a tres millas de su ubicación real cerca de la bocana. El patrón coincide con suplantación de señal.', o:[
+  {t:'Emitir aviso a navegantes y navegar por radar y referencias visuales', fx:{MAR:5,ESP:5,INF:5,REC:-5}, n:'Las alternativas al GNSS mantienen la navegación segura.'},
+  {t:'Suspender el tránsito nocturno por el canal', fx:{MAR:-10,TER:-5,ESP:5}, n:'Medida segura pero costosa para la cadena logística.'},
+  {t:'Esperar confirmación técnica antes de actuar', fx:{}, later:{in:1,fx:{MAR:-20,LEG:-5},m:'Un granelero toca fondo en el canal por un error de posición.'}, n:'La demora ante una amenaza probable trasladó el riesgo a los buques.'}]},
+ {d:'INF', t:'Video viral falso', s:'Circula un video editado que afirma que la autoridad naval abandonó el puerto. Suma 200 mil reproducciones en dos horas.', o:[
+  {t:'Vocería en menos de una hora con imágenes verificables', fx:{INF:15,LEG:5,REC:-5}, n:'Responder rápido y con evidencia frena la narrativa falsa.'},
+  {t:'Comunicado escrito al día siguiente', fx:{INF:-5}, n:'La respuesta tardía deja el espacio informativo al rumor.'},
+  {t:'No responder para no amplificarlo', fx:{INF:-15,LEG:-5}, n:'Con ese alcance, el silencio se interpreta como confirmación.'}]},
+ {d:'AIR', t:'Dron sobre la terminal de combustible', s:'Un dron sin identificar sobrevuela por tercera vez la terminal de combustible a baja altura.', o:[
+  {t:'Restringir el espacio aéreo y rastrear al operador', fx:{AIR:10,TER:5,REC:-10}, n:'Control del espacio aéreo con respuesta proporcional.'},
+  {t:'Neutralizarlo de inmediato con interferencia electrónica', fx:{AIR:5,LEG:-10,CIB:-5}, n:'La interferencia también afectó comunicaciones civiles cercanas.'},
+  {t:'Solo vigilarlo', fx:{AIR:-5}, later:{in:2,fx:{TER:-15,AIR:-5},m:'Se descubre un intento de sabotaje preparado con imágenes del dron.'}, n:'La vigilancia pasiva cedió la iniciativa.'}]},
+ {d:'MAR', t:'Embarcación sospechosa en la ZEE', s:'El radar costero detecta una embarcación con AIS apagado navegando en patrón de búsqueda dentro de la zona económica exclusiva.', o:[
+  {t:'Interceptar con una unidad de superficie', fx:{MAR:15,REC:-15}, n:'Presencia efectiva, a costa de recursos.'},
+  {t:'Seguimiento con radar costero y patrulla aérea', fx:{MAR:5,AIR:5,REC:-5}, n:'Combinar dominios da vigilancia continua con menor costo.'},
+  {t:'Notificar por la vía diplomática', fx:{MAR:-5,LEG:10}, n:'Fortalece la legitimidad pero cede control local.'}]},
+ {d:'TER', t:'Apagón en la subestación del muelle', s:'Falla la subestación que alimenta las grúas y el centro de control de tráfico marítimo.', o:[
+  {t:'Activar plantas de emergencia y priorizar el control de tráfico', fx:{MAR:5,TER:5,REC:-10}, n:'Priorizar funciones críticas sostiene la operación.'},
+  {t:'Detener la operación hasta que regrese la energía', fx:{MAR:-15,TER:-5}, n:'La parálisis total amplifica el efecto económico.'},
+  {t:'Reportar a la compañía eléctrica y esperar', fx:{TER:-5}, later:{in:1,fx:{MAR:-10,CIB:-5},m:'Sin energía estable fallan los respaldos de datos.'}, n:'Depender de un tercero sin plan propio retrasó la recuperación.'}]},
+ {d:'ESP', t:'Pérdida de enlace satelital', s:'Dos unidades en altamar pierden el enlace satelital de datos. La causa podría ser meteorológica o intencional.', o:[
+  {t:'Pasar a comunicaciones HF con reportes por horario', fx:{ESP:5,MAR:5,REC:-5}, n:'La redundancia de enlaces mantiene el mando y control.'},
+  {t:'Ordenar el regreso de las unidades a puerto', fx:{MAR:-15,ESP:5}, n:'Se protege a las unidades pero se pierde presencia.'},
+  {t:'Mantener la misión sin contacto', fx:{ESP:-10}, later:{in:1,fx:{MAR:-10,LEG:-5},m:'Una unidad no recibe la orden de apoyar una emergencia.'}, n:'Operar sin mando y control elevó el riesgo.'}]},
+ {d:'CIB', t:'Correos de phishing a mandos', s:'Se detectan correos dirigidos a mandos con un falso parte meteorológico que instala software espía.', o:[
+  {t:'Bloquear el dominio, alertar al personal y revisar equipos', fx:{CIB:10,REC:-5}, n:'Respuesta rápida apoyada en la concienciación del personal.'},
+  {t:'Cambiar contraseñas y continuar', fx:{}, later:{in:2,fx:{CIB:-10,INF:-5},m:'Aparecen documentos internos filtrados en redes sociales.'}, n:'Medida parcial: el software espía siguió activo.'},
+  {t:'Desconectar toda la red administrativa 48 horas', fx:{CIB:5,TER:-5,MAR:-5,REC:-10}, n:'Contención total con alto costo operativo.'}]},
+ {d:'INF', t:'Bloqueo por rumores de veda', s:'Pescadores bloquean el acceso al puerto por el rumor de una veda total que nadie ha anunciado.', o:[
+  {t:'Diálogo en sitio con autoridades pesqueras y líderes locales', fx:{INF:10,TER:5,LEG:5,REC:-5}, n:'El diálogo directo desactiva el rumor en su origen.'},
+  {t:'Despejar el acceso con fuerza pública', fx:{TER:5,INF:-15,LEG:-15}, n:'Recuperar el acceso así deterioró la confianza.'},
+  {t:'Desmentido solo en redes sociales', fx:{TER:-5}, n:'El canal elegido no llega a quienes protestan.'}]},
+ {d:'AIR', t:'Dos emergencias, una aeronave', s:'Un buque con lesionados está a 80 millas y una lancha volcada a 15 millas. Solo hay una aeronave de rescate disponible.', o:[
+  {t:'Atender la lancha y coordinar con un mercante cercano para el buque', fx:{AIR:5,MAR:5,LEG:5}, n:'Coordinar medios civiles amplió la capacidad de respuesta.'},
+  {t:'Atender primero el buque lejano', fx:{AIR:-5,LEG:-5}, n:'El mayor tiempo de vuelo dejó sin apoyo la emergencia cercana.'},
+  {t:'Pedir apoyo aéreo a otra región y esperar', fx:{AIR:-10,INF:-5}, n:'La espera consumió el tiempo crítico de rescate.'}]},
+ {d:'TER', t:'Bloqueo carretero al combustible', s:'Un bloqueo carretero impide que lleguen pipas de combustible al puerto. La reserva alcanza para 36 horas.', o:[
+  {t:'Abastecer por vía marítima desde otro puerto', fx:{TER:5,MAR:-5,REC:-10}, n:'Usar otro dominio para resolver un problema terrestre.'},
+  {t:'Racionar combustible para unidades prioritarias', fx:{MAR:-5,AIR:-5}, n:'Conserva capacidad crítica pero reduce operaciones.'},
+  {t:'Esperar a que se libere el bloqueo', fx:{}, later:{in:1,fx:{MAR:-10,AIR:-10},m:'Se agota la reserva y se suspenden patrullajes.'}, n:'Sin plan alterno, la logística se volvió el punto débil.'}]},
+ {d:'MAR', t:'Derrame en el canal de navegación', s:'Un buque tanque reporta un derrame menor de hidrocarburo en el canal principal.', o:[
+  {t:'Activar el plan de contingencia con barreras y aviso a la población', fx:{MAR:10,INF:5,REC:-10}, n:'Contener y comunicar al mismo tiempo.'},
+  {t:'Cerrar el canal y evaluar', fx:{MAR:-5,TER:-5}, n:'Evita la dispersión pero detiene el tráfico.'},
+  {t:'Dejar la limpieza a la naviera', fx:{LEG:-10}, later:{in:2,fx:{MAR:-10,INF:-10},m:'El derrame llega a playas turísticas y se vuelve noticia nacional.'}, n:'Delegar sin supervisión trasladó el costo a la autoridad.'}]}
+];
+const WSC = [
+  {n:'Litoral del Golfo', b:'Temporada de huracanes, puerto petrolero y alta actividad pesquera. Llegas al centro de mando a las 06:00.'},
+  {n:'Puerto industrial del Pacífico', b:'Terminal de contenedores con alta automatización y aeropuerto cercano. La crisis inicia a medianoche.'},
+  {n:'Estrecho de tráfico intenso', b:'Paso obligado de buques de carga con presencia internacional. Las tensiones diplomáticas están en aumento.'}
+];
+const TURNS = 6, T0 = [6, 0, 12];
+function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function shuffle(a, r){ a = a.slice(); for (let i = a.length-1; i > 0; i--){ const j = Math.floor(r()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; } return a; }
+
+const W = {scen:0, seed:1};
+function wStart(){
+  const r = rng(W.seed*977 + W.scen*131);
+  const pool = shuffle(INJ, r), pick = [], cnt = {};
+  for (const x of pool){ if (pick.length === TURNS) break; if ((cnt[x.d]||0) >= 2) continue; cnt[x.d] = (cnt[x.d]||0)+1; pick.push({...x, o: shuffle(x.o, r)}); }
+  Object.assign(W, {order:pick, turn:0, ind:{MAR:70,AIR:70,TER:70,ESP:70,CIB:70,INF:70,REC:100,LEG:70}, last:{}, log:[], pend:[], chosen:null, done:false, notices:[]});
+  wTurnStart(); wRender();
+}
+function applyFx(fx){ for (const k in fx){ W.ind[k] = Math.max(0, Math.min(100, W.ind[k] + fx[k])); W.last[k] = (W.last[k]||0) + fx[k]; } }
+function fxText(fx){ const ks = Object.keys(fx).filter(k => fx[k]); return ks.length ? ks.map(k => `${indName(k)} ${fx[k] > 0 ? '+' : '−'}${Math.abs(fx[k])}`).join(', ') : 'sin efecto inmediato'; }
+function wTurnStart(){
+  W.notices = []; W.last = {};
+  W.pend = W.pend.filter(p => { if (p.at <= W.turn){ applyFx(p.fx); W.notices.push(`Consecuencia diferida: ${p.m} (${fxText(p.fx)}).`); return false; } return true; });
+  const weak = IND.filter(k => W.ind[k] < 40);
+  if (weak.length && W.turn > 0){ applyFx({INF:-5}); W.notices.push(`La degradación en ${weak.map(indName).join(' y ').toLowerCase()} se percibe como pérdida de control (cognitivo −5).`); }
+}
+function wChoose(i){
+  if (W.chosen !== null || W.done) return;
+  const inj = W.order[W.turn], o = inj.o[i];
+  W.last = {}; applyFx(o.fx);
+  if (o.later) W.pend.push({at: W.turn + o.later.in, fx:o.later.fx, m:o.later.m});
+  W.log.push({turn:W.turn, inj, o});
+  W.chosen = i; wRender();
+}
+function wNext(){
+  W.turn++;
+  if (W.turn >= TURNS){
+    W.notices = []; W.last = {};
+    for (const p of W.pend){ applyFx(p.fx); W.notices.push(`Después del ejercicio: ${p.m} (${fxText(p.fx)}).`); }
+    W.pend = []; W.done = true;
+  } else { W.chosen = null; wTurnStart(); }
+  wRender();
+  const m = $('#w-main'); if (m.getBoundingClientRect().top < 0) m.scrollIntoView({behavior:'smooth', block:'start'});
+}
+const clockOf = t => { const h = (T0[W.scen] + t*6) % 24, day = Math.floor((T0[W.scen] + t*6)/24) + 1; return `Día ${day} · ${String(h).padStart(2,'0')}:00`; };
+function wScore(){ const dom = IND.reduce((a,k) => a + W.ind[k], 0)/IND.length; return Math.round(dom*.6 + W.ind.REC*.2 + W.ind.LEG*.2); }
+const grade = s => s >= 80 ? ['Sobresaliente','var(--ok)'] : s >= 65 ? ['Satisfactorio','var(--low)'] : s >= 50 ? ['En desarrollo','var(--mod)'] : ['Insuficiente','var(--crit)'];
+
+function wRender(){
+  $('#w-scen').innerHTML = WSC.map((s,i) => `<button class="chipbtn" type="button" data-i="${i}" aria-pressed="${W.scen===i}">${esc(s.n)}</button>`).join('');
+  $('#w-brief').textContent = WSC[W.scen].b;
+  $('#w-clock').textContent = W.done ? 'Fin' : `${W.turn+1}/${TURNS}`;
+  $('#w-ind').innerHTML = [...IND,'REC','LEG'].map(k => {
+    const v = W.ind[k], d = W.last[k];
+    const col = DOM[k] ? dc(k) : 'var(--accent)';
+    return `<div class="bar" style="--dc:${v < 40 ? 'var(--crit)' : col}"><span>${indName(k)}</span><div class="track"><div class="fill" style="width:${v}%"></div></div><span class="num">${v}${d ? `<br><span class="delta ${d>0?'up':'dn'}">${d>0?'+':'−'}${Math.abs(d)}</span>` : ''}</span></div>`;
+  }).join('');
+
+  let h = W.notices.map(n => `<div class="notice">${esc(n)}</div>`).join('');
+  if (!W.done){
+    const inj = W.order[W.turn];
+    h += `<div class="card inject" style="--dc:${dc(inj.d)}">
+      <div class="clock"><span>${chip(inj.d)} <span class="eyebrow">· Turno ${W.turn+1} de ${TURNS}</span></span><span class="mono muted">${clockOf(W.turn)}</span></div>
+      <h3>${esc(inj.t)}</h3><p>${esc(inj.s)}</p>
+      <div class="opts">${inj.o.map((o,i) => `<button class="opt${W.chosen===i?' sel':''}" type="button" data-i="${i}" ${W.chosen!==null?'disabled':''}><span class="k">${'ABC'[i]}</span><span>${esc(o.t)}</span></button>`).join('')}</div>
+      ${W.chosen !== null ? (() => { const o = inj.o[W.chosen]; return `<div class="feedback"><div class="fx">${Object.keys(o.fx).filter(k => o.fx[k]).map(k => `<span style="color:${o.fx[k]>0?'var(--ok)':'var(--crit)'}">${esc(indName(k))} ${o.fx[k]>0?'+':'−'}${Math.abs(o.fx[k])}</span>`).join('') || '<span>Sin efecto inmediato</span>'}</div><p>${esc(o.n)}</p>${o.later ? '<p class="muted">Esta decisión puede tener consecuencias en turnos posteriores.</p>' : ''}<div><button class="btn" type="button" id="w-next">${W.turn+1 < TURNS ? 'Siguiente turno' : 'Ver evaluación'}</button></div></div>`; })() : ''}
+    </div>`;
+  } else {
+    const s = wScore(), [g, gc] = grade(s);
+    const sorted = IND.slice().sort((a,b) => W.ind[a]-W.ind[b]);
+    h += `<div class="card"><span class="eyebrow">Evaluación final</span><div class="score" style="margin-top:8px"><b style="color:${gc}">${s}</b><div><h3 style="font-size:26px">${g}</h3><p class="muted">60 % promedio de los seis dominios, 20 % recursos y 20 % legitimidad.</p></div></div>
+      <p style="margin-top:12px">Dominio más fuerte: <b>${indName(sorted[5])}</b> (${W.ind[sorted[5]]}). Dominio más débil: <b>${indName(sorted[0])}</b> (${W.ind[sorted[0]]}).</p>
+      <div style="margin-top:12px"><button class="btn" type="button" id="w-again">Repetir con otros eventos</button></div></div>
+      <div class="card"><h3>Bitácora de decisiones</h3><div class="scroll-x"><table class="t"><thead><tr><th>Turno</th><th>Evento</th><th>Decisión</th><th>Lección</th></tr></thead><tbody>${W.log.map(l => `<tr><td class="mono">${l.turn+1}</td><td>${chip(l.inj.d)}<br>${esc(l.inj.t)}</td><td>${esc(l.o.t)}</td><td class="muted">${esc(l.o.n)}</td></tr>`).join('')}</tbody></table></div></div>`;
+  }
+  $('#w-main').innerHTML = h;
+  const nb = $('#w-next'); if (nb) nb.onclick = wNext;
+  const ab = $('#w-again'); if (ab) ab.onclick = () => { W.seed++; wStart(); };
+
+  report($('#w-report'), 'Ejercicio de mesa multidominio', `Escenario: ${WSC[W.scen].n}`, [
+    {h:'Estado', p: W.done ? `Ejercicio concluido. Calificación ${wScore()}/100 (${grade(wScore())[0].toLowerCase()}).` : `En curso: turno ${W.turn+1} de ${TURNS}. Los indicadores reflejan las decisiones tomadas hasta ahora.`},
+    {h:'Indicadores', items: [...IND,'REC','LEG'].map(k => `${indName(k)}: ${W.ind[k]}/100`)},
+    {h:'Decisiones', items: W.log.length ? W.log.map(l => `Turno ${l.turn+1}, ${DOM[l.inj.d].n.toLowerCase()} · ${l.inj.t}: ${l.o.t}. ${l.o.n}`) : ['Aún no se ha tomado ninguna decisión.']},
+    {h:'Consecuencias pendientes', p: W.pend.length ? `Hay ${W.pend.length} consecuencia(s) diferida(s) que aún no se manifiestan.` : 'No hay consecuencias diferidas pendientes.'}
+  ]);
+}
+$('#w-scen').onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; W.scen = +b.dataset.i; wStart(); };
+$('#w-main').addEventListener('click', e => { const b = e.target.closest('.opt'); if (b && !b.disabled) wChoose(+b.dataset.i); });
+$('#w-new').onclick = () => { W.seed++; wStart(); };
+
+/* =========================================================
+   M3 · COMPARADOR DE CURSOS DE ACCIÓN
+   ========================================================= */
+const CRIT = ['Efecto en el dominio marítimo','Efecto en aire y espacio','Efecto en ciberespacio e información','Riesgo para el personal (5 = bajo)','Costo en recursos (5 = bajo)','Rapidez de implementación','Legalidad y legitimidad'];
+const CASES = [
+  {n:'Interferencia GNSS', sit:'Suplantación de señal GNSS afecta la navegación de buques en la aproximación al puerto principal durante 72 horas.',
+   coas:['Navegación alterna y aviso a navegantes','Cierre temporal del canal','Escolta naval y localización del emisor'],
+   w:[5,3,3,4,3,4,5], s:[[4,3,5,4,4,5,5],[3,2,3,5,3,4,4],[5,4,4,2,2,2,4]]},
+  {n:'Ciberataque portuario', sit:'Ransomware cifra el sistema de operación de la terminal de contenedores. Hay buques en espera y presión de navieras.',
+   coas:['Aislar la red y operar en manual','Restaurar desde respaldos en paralelo','Contraofensiva técnica sobre el atacante'],
+   w:[4,2,5,4,3,4,5], s:[[3,3,4,4,3,4,5],[4,3,5,4,2,2,5],[3,3,3,3,2,3,1]]}
+];
+const A = {case:0, sit:'', coas:[], w:[], s:[]};
+function aLoad(i){ const c = CASES[i]; A.case = i; A.sit = c.sit; A.coas = c.coas.slice(); A.w = c.w.slice(); A.s = c.s.map(r => r.slice()); aBuild(); aRender(); }
+const LET = ['A','B','C'];
+function aTotals(w){ const max = w.reduce((a,b) => a+b, 0)*5 || 1; return A.s.map(row => row.reduce((a,v,k) => a + v*w[k], 0)/max*100); }
+function aWinner(w){ const t = aTotals(w); return t.indexOf(Math.max(...t)); }
+function aBuild(){
+  $('#a-case').innerHTML = CASES.map((c,i) => `<button class="chipbtn" type="button" data-i="${i}" aria-pressed="${A.case===i}">${esc(c.n)}</button>`).join('');
+  $('#a-sit').value = A.sit;
+  $('#a-names').innerHTML = A.coas.map((n,i) => `<label for="a-n${i}"><span>${LET[i]}</span><input type="text" id="a-n${i}" data-i="${i}" value="${esc(n)}"></label>`).join('');
+  $('#a-matrix').innerHTML = `<thead><tr><th>Criterio</th><th>Peso</th>${A.coas.map((_,i) => `<th>${LET[i]}</th>`).join('')}</tr></thead><tbody>` +
+    CRIT.map((c,k) => `<tr><td>${esc(c)}</td><td class="w"><input type="range" id="a-w${k}" min="0" max="5" value="${A.w[k]}" data-w="${k}" aria-label="Peso de ${esc(c)}"> <span class="mono" id="a-wv${k}">${A.w[k]}</span></td>${A.coas.map((_,i) => `<td><select id="a-s${i}-${k}" data-c="${i}" data-k="${k}" aria-label="${LET[i]}: ${esc(c)}">${[1,2,3,4,5].map(v => `<option${A.s[i][k]===v?' selected':''}>${v}</option>`).join('')}</select></td>`).join('')}</tr>`).join('') + '</tbody>';
+  aPaint();
+}
+function aPaint(){
+  document.querySelectorAll('#a-matrix select').forEach(sel => { const v = +sel.value; sel.style.background = `color-mix(in srgb, var(--accent) ${(v-1)*12}%, var(--surface2))`; });
+}
+function aRender(){
+  const t = aTotals(A.w), order = t.map((v,i) => i).sort((a,b) => t[b]-t[a]);
+  const win = order[0], margin = t[order[0]] - t[order[1]];
+  $('#a-rank').innerHTML = order.map((i,r) => `<div class="bar" style="--dc:${r===0?'var(--accent)':'var(--muted)'}"><span class="name"><b class="mono">${LET[i]}</b> ${esc(A.coas[i])}</span><div class="track"><div class="fill" style="width:${t[i].toFixed(1)}%"></div></div><span class="num">${t[i].toFixed(1)}</span></div>`).join('') +
+    `<div class="verdict">Recomendado: <b>${LET[win]} · ${esc(A.coas[win])}</b>, con ${margin.toFixed(1)} puntos de ventaja sobre ${LET[order[1]]}. ${margin < 3 ? 'La diferencia es estrecha: conviene discutirla en grupo.' : margin < 8 ? 'Ventaja moderada.' : 'Ventaja clara.'}</div>`;
+  // sensibilidad: mover cada peso a 0 y a 5
+  const flips = [];
+  CRIT.forEach((c,k) => [0,5].forEach(v => { if (v === A.w[k]) return; const w = A.w.slice(); w[k] = v; const nw = aWinner(w); if (nw !== win) flips.push({k, v, nw}); }));
+  // fortaleza: criterio donde el ganador más supera al segundo
+  const diff = CRIT.map((c,k) => ({k, d:(A.s[win][k] - A.s[order[1]][k])*A.w[k]})).sort((a,b) => b.d - a.d);
+  $('#a-sens').innerHTML = (flips.length
+    ? `<p><b style="color:var(--high)">Decisión sensible.</b> La recomendación cambia si:</p><ul style="margin:0;padding-left:18px;display:grid;gap:4px">${flips.map(f => `<li>${esc(CRIT[f.k])} pesa ${f.v} en lugar de ${A.w[f.k]}: gana ${LET[f.nw]}</li>`).join('')}</ul>`
+    : `<p><b style="color:var(--ok)">Decisión robusta.</b> Ningún cambio individual de peso entre 0 y 5 altera la recomendación.</p>`) +
+    `<p class="muted">Mayor ventaja de ${LET[win]}: ${esc(CRIT[diff[0].k].replace(/ \(5 = bajo\)/,''))}. Mayor desventaja: ${esc(CRIT[diff[diff.length-1].k].replace(/ \(5 = bajo\)/,''))}.</p>`;
+  report($('#a-report'), 'Comparación de cursos de acción', CASES[A.case] ? `Caso base: ${CASES[A.case].n}` : 'Caso propio', [
+    {h:'Situación', p: A.sit || 'Sin descripción.'},
+    {h:'Cursos de acción evaluados', items: A.coas.map((n,i) => `${LET[i]}. ${n}: ${t[i].toFixed(1)}/100`)},
+    {h:'Criterios y pesos', items: CRIT.map((c,k) => `${c}: peso ${A.w[k]}`)},
+    {h:'Recomendación', p:`${LET[win]}. ${A.coas[win]}, con ${margin.toFixed(1)} puntos de ventaja.`},
+    {h:'Sensibilidad', items: flips.length ? flips.map(f => `Si ${CRIT[f.k]} pesa ${f.v}, gana ${LET[f.nw]}`) : ['La recomendación se mantiene ante cambios individuales de peso.']}
+  ]);
+}
+$('#a-case').onclick = e => { const b = e.target.closest('[data-i]'); if (b) aLoad(+b.dataset.i); };
+$('#a-sit').oninput = e => { A.sit = e.target.value; aRender(); };
+$('#a-names').oninput = e => { const i = e.target.dataset.i; if (i !== undefined){ A.coas[+i] = e.target.value || `Curso ${LET[+i]}`; aRender(); } };
+$('#a-matrix').addEventListener('input', e => {
+  const el = e.target;
+  if (el.dataset.w !== undefined){ A.w[+el.dataset.w] = +el.value; $('#a-wv' + el.dataset.w).textContent = el.value; }
+  if (el.dataset.c !== undefined){ A.s[+el.dataset.c][+el.dataset.k] = +el.value; aPaint(); }
+  aRender();
+});
+
+/* =========================================================
+   M4 · DETECTOR DE DOMINIO COGNITIVO
+   ========================================================= */
+const GI = [
+  {id:'emo', n:'Lenguaje emocional', c:'var(--d-inf)', wt:.18, terms:['escandalo','escandaloso','terrible','indignante','alarmante','catastrofico','catastrofe','aterrador','verguenza','odio','miedo','panico','brutal','impactante','horrible','desastre','tragedia','increible','criminal','vil','asqueroso','furia','espeluznante'],
+   tip:'Lee el texto quitando los adjetivos: si los hechos que quedan no sostienen la alarma, el tono busca reacción y no información.'},
+  {id:'abs', n:'Absolutos y generalizaciones', c:'var(--d-esp)', wt:.10, terms:['siempre','nunca','todos','todas','nadie','totalmente','absolutamente','jamas','ninguno','ninguna','completamente','sin excepcion','cada vez peor'],
+   tip:'Busca casos o cifras concretas detrás de cada generalización ("todos", "nunca").'},
+  {id:'vag', n:'Fuentes vagas o anónimas', c:'var(--d-air)', wt:.17, terms:['se dice','dicen que','fuentes anonimas','segun rumores','al parecer','trascendio','habria','habrian','se rumora','expertos aseguran','muchos creen','circula','me dijeron','un amigo','fuentes cercanas','presuntamente'],
+   tip:'Identifica quién afirma cada dato. Si no hay nombre, institución ni documento, trátalo como no confirmado.'},
+  {id:'acc', n:'Llamado urgente a difundir', c:'var(--high)', wt:.15, terms:['compartelo','comparte','difunde','difundan','reenvia','reenvien','antes de que lo borren','urgente','ahora mismo','despierta','despierten','que todos sepan','pasalo','viralicen'],
+   tip:'La urgencia por difundir es una señal para hacer lo contrario: pausa y verifica antes de compartir.'},
+  {id:'pol', n:'Polarización nosotros contra ellos', c:'var(--d-cib)', wt:.10, terms:['ellos','nos quieren','enemigos','traidores','la elite','vendidos','nuestra gente','el pueblo','los de siempre','enemigo del pueblo','nos odian'],
+   tip:'Observa si el texto divide en bandos y atribuye intenciones a un grupo completo sin evidencia.'},
+  {id:'con', n:'Conspiración u ocultamiento', c:'var(--d-mar)', wt:.15, terms:['ocultan','oculta','no quieren que sepas','la verdad que','encubren','encubrimiento','censura','censuran','silencian','plan secreto','manipulan','nos mienten','lo que no te dicen','los medios no'],
+   tip:'Pregunta qué evidencia mostraría que la afirmación es falsa. Si ninguna la convence, no es verificable.'}
+];
+const EXAMPLES = [
+  {n:'Mensaje de cadena', t:'¡URGENTE! Compártelo antes de que lo borren. Dicen que la Armada abandonó el puerto anoche y que nadie va a proteger a nuestra gente. Fuentes anónimas aseguran que el gobierno oculta un derrame terrible que ya llegó a todas las playas. Ellos no quieren que sepas la verdad. ¡¡Despierta y difunde!!'},
+  {n:'Nota ambigua', t:'Al parecer, varios buques habrían perdido la señal GPS cerca de la bocana durante la madrugada. Trascendió que las autoridades evalúan cerrar el puerto, aunque no hay confirmación. Expertos aseguran que el problema es grave y que se repetirá siempre en temporada de lluvias.'},
+  {n:'Comunicado oficial', t:'La Capitanía de Puerto informó a las 14:30 horas que el canal de navegación opera con normalidad. Según la Dirección de Protección al Medio Marino, el derrame reportado el 11 de octubre fue de 300 litros y quedó contenido con 400 metros de barreras. Se recomienda a las embarcaciones menores reducir la velocidad en el área señalada.'}
+];
+const normChar = ch => (ch.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()[0] || ch);
+const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+GI.forEach(g => g.re = new RegExp('(?<![a-z0-9])(' + g.terms.slice().sort((a,b) => b.length-a.length).map(escRe).join('|') + ')(?![a-z0-9])', 'g'));
+
+function gAnalyze(txt){
+  const norm = Array.from(txt).map(normChar).join('');
+  // Array.from separa por puntos de código; el texto original se recorre igual para que los índices coincidan
+  const chars = Array.from(txt);
+  const words = (norm.match(/[a-z0-9ñ]+/g) || []).length;
+  const sentences = Math.max(1, (txt.match(/[.!?]+(\s|$)/g) || []).length);
+  const base = Math.max(words, 60);
+  const hits = [];
+  const res = GI.map(g => {
+    let m, h = 0; g.re.lastIndex = 0;
+    while ((m = g.re.exec(norm))){ h++; hits.push({s:m.index, e:m.index + m[0].length, g}); }
+    return {g, h, v: Math.min(100, Math.round(h/base*100*22))};
+  });
+  const capsWords = (txt.match(/\b[A-ZÁÉÍÓÚÑ]{4,}\b/g) || []).length;
+  const excl = (txt.match(/[!¡]/g) || []).length;
+  const formal = Math.min(100, Math.round(capsWords/base*100*12 + excl/sentences*30));
+  const digits = (txt.match(/\d+/g) || []).length;
+  const named = (txt.match(/\b(según|de acuerdo con|informó|declaró|comunicado de)\s+(la |el |los |las )?[A-ZÁÉÍÓÚÑ]/gi) || []).length;
+  const verif = words < 8 ? 0 : (named && digits) ? 5 : named ? 25 : digits ? 45 : 75;
+  res.push({g:{id:'for', n:'Mayúsculas y signos de exclamación', c:'var(--d-ter)', wt:.07, tip:'Los textos informativos rara vez usan mayúsculas sostenidas o exclamaciones repetidas; su presencia busca impacto emocional.'}, h:capsWords+excl, v:formal});
+  res.push({g:{id:'ver', n:'Falta de datos verificables', c:'var(--muted)', wt:.08, tip:'Busca la fuente original del dato (comunicado, documento, autoridad con nombre) y confirma fechas y cifras.'}, h:0, v:verif});
+  const score = words < 8 ? 0 : Math.round(res.reduce((a,r) => a + r.v*r.g.wt, 0) * 1.35);
+  // marcas sin traslape
+  hits.sort((a,b) => a.s - b.s || b.e - a.e);
+  let out = '', pos = 0;
+  for (const h of hits){ if (h.s < pos) continue; out += esc(chars.slice(pos, h.s).join('')) + `<mark style="--mc:${h.g.c}" title="${esc(h.g.n)}">${esc(chars.slice(h.s, h.e).join(''))}</mark>`; pos = h.e; }
+  out += esc(chars.slice(pos).join(''));
+  return {res, score: Math.min(100, score), words, sentences, digits, named, html: out, hits: hits.length};
+}
+const gLevel = s => s >= 70 ? ['Muy alto','var(--crit)'] : s >= 50 ? ['Alto','var(--high)'] : s >= 25 ? ['Moderado','var(--mod)'] : ['Bajo','var(--ok)'];
+let gEx = 0;
+function gRender(){
+  const txt = $('#g-text').value;
+  $('#g-count').textContent = txt.length.toLocaleString('es-MX');
+  $('#g-ex').innerHTML = EXAMPLES.map((x,i) => `<button class="chipbtn" type="button" data-i="${i}" aria-pressed="${gEx===i}">${esc(x.n)}</button>`).join('');
+  const a = gAnalyze(txt), [lv, lc] = gLevel(a.score);
+  $('#g-gauge').innerHTML = `<b style="color:${lc}">${a.score}</b><div style="display:grid;gap:6px"><span class="eyebrow">Índice de señales de manipulación</span><h3 style="font-size:24px">${a.words < 8 ? 'Texto insuficiente' : 'Nivel ' + lv.toLowerCase()}</h3>
+    <div class="stats"><span><b>${a.words}</b> palabras</span><span><b>${a.sentences}</b> oraciones</span><span><b>${a.hits}</b> expresiones marcadas</span><span><b>${a.digits}</b> cifras</span><span><b>${a.named}</b> fuentes con nombre</span></div></div>`;
+  $('#g-hl').innerHTML = txt.trim() ? a.html : '<span class="muted">Pega un texto o elige un ejemplo.</span>';
+  $('#g-ind').innerHTML = a.res.map(r => `<div class="bar" style="--dc:${r.g.c};grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 36px"><span>${esc(r.g.n)}</span><div class="track"><div class="fill" style="width:${r.v}%"></div></div><span class="num">${r.v}</span></div>`).join('');
+  const recs = a.res.filter(r => r.v >= 40).sort((x,y) => y.v - x.v);
+  $('#g-rec').innerHTML = a.words < 8 ? '<li class="muted">Escribe al menos una oración completa.</li>'
+    : (recs.length ? recs.map(r => `<li><b>${esc(r.g.n)}.</b> ${esc(r.g.tip)}</li>`).join('') : '<li>No hay señales fuertes. Aun así, confirma la fuente original antes de difundir.</li>');
+  report($('#g-report'), 'Análisis de dominio cognitivo', `${a.words} palabras analizadas`, [
+    {h:'Resultado', p: a.words < 8 ? 'Texto insuficiente para analizar.' : `Índice ${a.score}/100, nivel ${lv.toLowerCase()}. Mide señales de manipulación narrativa, no la veracidad del contenido.`},
+    {h:'Indicadores', items: a.res.map(r => `${r.g.n}: ${r.v}/100`)},
+    {h:'Expresiones detectadas', items: (() => { const seen = new Map(); const norm = Array.from(txt); GI.forEach(g => { g.re.lastIndex = 0; let m; const n = Array.from(txt).map(normChar).join(''); while ((m = g.re.exec(n))) { const w = norm.slice(m.index, m.index + m[0].length).join(''); seen.set(w.toLowerCase(), g.n); } }); return seen.size ? [...seen].slice(0,15).map(([w,n]) => `"${w}" (${n.toLowerCase()})`) : ['Ninguna.']; })()},
+    {h:'Verificación sugerida', items: recs.length ? recs.map(r => r.g.tip) : ['Confirmar la fuente original antes de difundir.']},
+    {h:'Texto analizado', p: txt.length > 1200 ? txt.slice(0,1200) + '…' : txt}
+  ]);
+}
+let gT;
+$('#g-text').oninput = () => { gEx = -1; clearTimeout(gT); gT = setTimeout(gRender, 180); };
+$('#g-ex').onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; gEx = +b.dataset.i; $('#g-text').value = EXAMPLES[gEx].t; gRender(); };
+$('#g-clear').onclick = () => { $('#g-text').value = ''; gEx = -1; gRender(); $('#g-text').focus(); };
+
+/* ---------- Arranque ---------- */
+cScenChips(); cRender();
+wStart();
+aLoad(0);
+$('#g-text').value = EXAMPLES[0].t; gRender();
+let start = location.hash.slice(1);
+if (!TABS.includes(start)){ try { start = localStorage.getItem('atalaya-tab') || 'cascada'; } catch(e){ start = 'cascada'; } }
+showTab(start);
+window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
+})();
+</script>
+
+</body>
+</html>
