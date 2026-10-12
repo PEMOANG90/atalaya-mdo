@@ -4,7 +4,11 @@ Suite académica de análisis para operaciones multidominio. Un solo archivo (`i
 
 **Sitio:** https://pemoang90.github.io/atalaya-mdo/
 
-## Módulos
+## Uso rápido
+
+Pega una noticia en **Análisis rápido** y pulsa **Analizar noticia**. El sitio muestra qué se afectó, qué puede venir después, qué hacer primero y qué tan confiable parece la noticia, con un reporte listo para copiar o imprimir.
+
+## Módulos avanzados
 
 | Módulo | Qué hace |
 | --- | --- |

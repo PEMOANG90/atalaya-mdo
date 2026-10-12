@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Suite académica de análisis para operaciones multidominio: cascada de efectos, ejercicio de mesa, comparador de cursos de acción y detector de dominio cognitivo.">
+<meta name="description" content="Suite académica de análisis para operaciones multidominio: pega una noticia y obtén el análisis de cascada, acciones prioritarias y confiabilidad.">
 <title>Atalaya MDO</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -179,6 +179,22 @@ mark{background:color-mix(in srgb,var(--mc) 22%,transparent);color:inherit;borde
 .rep-body ul{margin:4px 0 0;padding-left:18px;display:grid;gap:3px}
 .rep-note{font-size:12px;color:var(--muted)}
 
+/* Inicio */
+.quick{background:var(--surface);border:1px solid var(--line);border-top:4px solid var(--accent);border-radius:6px;padding:22px;display:grid;gap:14px}
+.quick h2{font-size:34px;font-weight:700}
+.quick textarea{min-height:170px;font-size:15.5px;background:var(--bg)}
+.q-actions{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.btn.big{font-size:17px;padding:12px 26px}
+.tabsep{align-self:center;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 6px 0 14px;border-left:1px solid var(--line);white-space:nowrap}
+.q-level{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.q-level .pill{font-family:var(--f-display);font-size:30px;font-weight:700;padding:4px 18px;border-radius:6px;color:var(--surface);background:var(--lc)}
+.q-level p{font-size:16px;max-width:70ch;min-width:0}
+.qgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media (max-width:760px){.qgrid{grid-template-columns:minmax(0,1fr)}}
+.qcard h3{display:flex;gap:10px;align-items:baseline}
+.qcard h3 .n{font-family:var(--f-mono);font-size:13px;color:var(--accent)}
+.qcard ul{margin:0;padding-left:18px;display:grid;gap:7px;font-size:14.5px}
+.q-more{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:14px;color:var(--muted)}
 footer{border-top:1px solid var(--line);padding-block:20px 36px;font-size:13px;color:var(--muted)}
 footer .wrap{display:grid;gap:6px;max-width:1180px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -218,7 +234,9 @@ footer .wrap{display:grid;gap:6px;max-width:1180px}
 
 <nav class="tabs" aria-label="Módulos">
   <div class="wrap" role="tablist">
-    <button class="tab" role="tab" data-tab="cascada" aria-selected="true"><span class="code">M1</span><span class="lbl">Cascada multidominio</span></button>
+    <button class="tab" role="tab" data-tab="inicio" aria-selected="true"><span class="code">▶</span><span class="lbl">Análisis rápido</span></button>
+    <span class="tabsep">Avanzado</span>
+    <button class="tab" role="tab" data-tab="cascada" aria-selected="false"><span class="code">M1</span><span class="lbl">Cascada multidominio</span></button>
     <button class="tab" role="tab" data-tab="ejercicio" aria-selected="false"><span class="code">M2</span><span class="lbl">Ejercicio de mesa</span></button>
     <button class="tab" role="tab" data-tab="coa" aria-selected="false"><span class="code">M3</span><span class="lbl">Cursos de acción</span></button>
     <button class="tab" role="tab" data-tab="cognitivo" aria-selected="false"><span class="code">M4</span><span class="lbl">Dominio cognitivo</span></button>
@@ -232,7 +250,20 @@ footer .wrap{display:grid;gap:6px;max-width:1180px}
 <main class="wrap">
 
 <!-- M1 -->
-<section class="mod" id="cascada" role="tabpanel">
+<section class="mod" id="inicio" role="tabpanel">
+  <div class="quick">
+    <span class="eyebrow">Análisis rápido · un solo paso</span>
+    <h2>Pega una noticia y obtén el análisis</h2>
+    <p class="muted">No necesitas configurar nada. La herramienta identifica qué se afectó, qué más puede afectarse después, qué conviene hacer primero y qué tan confiable parece la noticia.</p>
+    <label for="q-text" class="eyebrow">Texto de la noticia</label>
+    <textarea id="q-text" maxlength="12000" placeholder="Pega aquí la noticia o describe el incidente…"></textarea>
+    <div class="q-actions"><button class="btn big" id="q-go" type="button">Analizar noticia</button><span class="muted">o prueba un ejemplo:</span><div class="chips" id="q-ex"></div></div>
+  </div>
+  <div class="results" id="q-out" style="margin-top:20px"></div>
+  <div class="report" id="q-report"></div>
+</section>
+
+<section class="mod" id="cascada" role="tabpanel" hidden>
   <div class="mod-head">
     <span class="eyebrow">Módulo 1 · Efectos en cascada</span>
     <h2>Cascada multidominio</h2>
@@ -403,9 +434,9 @@ function report(el, title, sub, sections){
 function selectBody(el){ const r = document.createRange(); r.selectNodeContents(el.querySelector('.rep-body')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
 
 /* ---------- Pestañas ---------- */
-const TABS = ['cascada','ejercicio','coa','cognitivo'];
+const TABS = ['inicio','cascada','ejercicio','coa','cognitivo'];
 function showTab(id){
-  if (!TABS.includes(id)) id = 'cascada';
+  if (!TABS.includes(id)) id = 'inicio';
   document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === id));
   document.querySelectorAll('.mod').forEach(s => s.hidden = s.id !== id);
   try { localStorage.setItem('atalaya-tab', id); } catch(e){}
@@ -934,13 +965,86 @@ $('#g-text').oninput = () => { gEx = -1; clearTimeout(gT); gT = setTimeout(gRend
 $('#g-ex').onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; gEx = +b.dataset.i; $('#g-text').value = EXAMPLES[gEx].t; gRender(); };
 $('#g-clear').onclick = () => { $('#g-text').value = ''; gEx = -1; gRender(); $('#g-text').focus(); };
 
+/* =========================================================
+   ANÁLISIS RÁPIDO · pegar la noticia y listo
+   ========================================================= */
+const QEX = [
+  {n:'Huracán', t:'El huracán Delta tocó tierra como categoría 4 en la costa de Veracruz. Se reporta un apagón total en la zona portuaria, el puerto suspendió operaciones y el aeropuerto canceló todos los vuelos. En redes sociales circulan rumores de saqueos y compras de pánico.'},
+  {n:'Ciberataque', t:'Un ataque de ransomware dejó sin servicio el sistema de la terminal de contenedores del puerto de Manzanillo. Las navieras reportan retrasos y la aduana opera de forma manual. Dicen que los hackers también tendrían acceso a datos de clientes.'},
+  {n:'Falla de GPS', t:'La Capitanía de Puerto informó que 14 buques reportaron fallas de GPS cerca de la bocana de Lázaro Cárdenas. Se emitió un aviso a navegantes y se recomienda navegar con radar. Pescadores locales reportan pérdida de posicionamiento.'},
+  {n:'Rumor viral', t:'¡URGENTE! Compártelo antes de que lo borren. Dicen que la Marina abandonó el puerto anoche y que nadie va a proteger a nuestra gente. Fuentes anónimas aseguran que ocultan un derrame terrible.'}
+];
+const ADVICE = {
+  nav:'Navegar con radar, carta náutica y referencias visuales mientras falle el GPS, y emitir aviso a navegantes.',
+  ot:'Aislar los sistemas afectados, operar en modo manual y restaurar desde respaldos fuera de línea.',
+  ener:'Encender plantas de emergencia en puerto, hospitales y aeropuerto, priorizando el control de tráfico.',
+  hf:'Pasar a radio HF/VHF para mantener contacto con las unidades.',
+  comb:'Asegurar reservas de combustible para al menos 72 horas y rutas alternas de abasto.',
+  voc:'Dar un mensaje oficial temprano, con datos verificables, para frenar rumores.'
+};
+let qEx = 0;
+function qRun(){
+  const txt = $('#q-text').value.trim(), out = $('#q-out');
+  $('#q-ex').innerHTML = QEX.map((x,i) => `<button class="chipbtn" type="button" data-i="${i}" aria-pressed="${qEx===i}">${esc(x.n)}</button>`).join('');
+  if (txt.length < 15){ out.innerHTML = '<div class="card muted">Pega una noticia de al menos una oración para ver el análisis.</div>'; $('#q-report').hidden = true; return; }
+  $('#q-report').hidden = false;
+  // 1. Cascada a partir del texto (también actualiza el módulo avanzado)
+  const p = cParse(txt), ids = Object.keys(p.init);
+  const r = ids.length ? simulate(p.init, .2, new Set()) : null;
+  if (ids.length){ C.init = p.init; C.desc = txt; C.scen = -1; C.mit = new Set(); document.querySelectorAll('#c-mit input').forEach(i => i.checked = false); $('#c-txt').value = txt; cScenChips(); cRender(); }
+  // 2. Confiabilidad del texto (también actualiza el módulo avanzado)
+  $('#g-text').value = txt; gEx = -1; gRender();
+  const g = gAnalyze(txt), [glv, glc] = gLevel(g.score);
+  // 3. Nivel general
+  const affected = r ? Object.keys(r.imp) : [];
+  const doms = [...new Set(affected.map(k => NM[k].d))];
+  const load = r ? Object.values(r.imp).reduce((a,b) => a+b, 0) : 0;
+  const cScore = Math.min(100, Math.round(load/7*100));
+  const lvl = cScore >= 70 ? ['Crítico','var(--crit)'] : cScore >= 45 ? ['Alto','var(--high)'] : cScore >= 20 ? ['Moderado','var(--mod)'] : ids.length ? ['Bajo','var(--low)'] : ['Sin daños identificados','var(--muted)'];
+  const derived = r ? r.derived.slice().sort((a,b) => r.imp[b]-r.imp[a]) : [];
+  const horizon = derived.length ? Math.max(...derived.map(k => r.t[k])) : 0;
+  const summary = ids.length
+    ? `La noticia describe daños en ${ids.length} infraestructura${ids.length>1?'s':''}. Por sus dependencias, el efecto puede alcanzar ${affected.length} de ${NODES.length} infraestructuras en ${doms.length} de los 6 dominios durante las siguientes ${horizon} horas.`
+    : 'No identifiqué infraestructuras dañadas en el texto, así que solo se evaluó la confiabilidad de la noticia.';
+  // 4. Qué hacer primero
+  const best = r ? MITS.map(m => { const alt = simulate(p.init, .2, new Set([m.id])); return {m, red: r.total ? (r.total-alt.total)/r.total : 0}; }).filter(x => x.red > .03).sort((a,b) => b.red-a.red).slice(0,3) : [];
+  const gTips = g.res.filter(x => x.v >= 40).sort((a,b) => b.v-a.v).slice(0,2);
+  const actions = best.map(x => `${ADVICE[x.m.id]} Reduce el impacto esperado alrededor de ${pct(x.red)} %.`);
+  if (g.score >= 50) actions.push('Verificar la noticia con fuentes oficiales antes de actuar o difundirla.');
+  if (!actions.length) actions.push('Mantener monitoreo y confirmar la información con la autoridad responsable.');
+  const why = id => `«${p.why[id]}»`;
+  const hr = h => h === 0 ? 'de inmediato' : h === 1 ? 'en cerca de una hora' : `en unas ${h} horas`;
+  out.innerHTML = `
+    <div class="card"><div class="q-level"><span class="pill" style="--lc:${lvl[1]}">${lvl[0]}</span><p>${esc(summary)}</p></div></div>
+    <div class="qgrid">
+      <div class="card qcard"><h3><span class="n">1</span>¿Qué se afectó?</h3>${ids.length ? `<ul>${ids.map(id => `<li><b>${esc(NM[id].n)}</b> ${chip(NM[id].d)}<br><span class="muted">${sevOf(p.init[id])[0]} · detectado por ${esc(why(id))}</span></li>`).join('')}</ul>` : '<p class="muted">No se mencionan infraestructuras reconocibles (puerto, energía, GPS, aeropuerto, sistemas, etc.).</p>'}</div>
+      <div class="card qcard"><h3><span class="n">2</span>¿Qué puede venir después?</h3>${derived.length ? `<ul>${derived.slice(0,5).map(k => `<li><b>${esc(NM[k].n)}</b> ${sevTag(r.imp[k])}<br><span class="muted">${hr(r.t[k])}, por depender de ${esc(NM[r.par[k]].s.toLowerCase())}</span></li>`).join('')}</ul>` : '<p class="muted">No se esperan efectos en otras infraestructuras.</p>'}</div>
+      <div class="card qcard"><h3><span class="n">3</span>¿Qué hacer primero?</h3><ul>${actions.map(a => `<li>${esc(a)}</li>`).join('')}</ul></div>
+      <div class="card qcard"><h3><span class="n">4</span>¿Qué tan confiable es la noticia?</h3><p><span class="sev" style="--sc:${glc}">Manipulación: ${glv.toLowerCase()}</span> <span class="mono muted">${g.score}/100</span></p><ul style="margin-top:8px">${gTips.length ? gTips.map(x => `<li><b>${esc(x.g.n)}.</b> ${esc(x.g.tip)}</li>`).join('') : '<li>No hay señales fuertes de manipulación. Aun así, confirma la fuente original.</li>'}</ul></div>
+    </div>
+    <div class="q-more">Para ver más detalle:<button class="chipbtn" type="button" data-go="cascada">Mapa de la cascada</button><button class="chipbtn" type="button" data-go="cognitivo">Texto marcado</button><button class="chipbtn" type="button" data-go="ejercicio">Practicar decisiones</button></div>`;
+  report($('#q-report'), 'Análisis rápido multidominio', `Nivel general: ${lvl[0].toLowerCase()}`, [
+    {h:'Noticia analizada', p: txt.length > 1500 ? txt.slice(0,1500) + '…' : txt},
+    {h:'Resumen', p: summary},
+    {h:'Infraestructuras afectadas', items: ids.length ? ids.map(id => `${NM[id].n} (${DOM[NM[id].d].n}): ${sevOf(p.init[id])[0].toLowerCase()}`) : ['Ninguna identificada.']},
+    {h:'Efectos posibles en cascada', items: derived.length ? derived.slice(0,6).map(k => `${NM[k].n}: ${sevOf(r.imp[k])[0].toLowerCase()}, ${hr(r.t[k])}`) : ['Sin efectos derivados.']},
+    {h:'Acciones prioritarias', items: actions},
+    {h:'Confiabilidad de la noticia', p:`Índice de señales de manipulación ${g.score}/100 (${glv.toLowerCase()}). ${gTips.map(x => x.g.n).join('; ') || 'Sin señales fuertes.'}`}
+  ]);
+}
+$('#q-go').onclick = () => { qEx = -1; qRun(); $('#q-out').scrollIntoView({behavior:'smooth', block:'start'}); };
+$('#q-text').oninput = () => { qEx = -1; };
+$('#q-ex').onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; qEx = +b.dataset.i; $('#q-text').value = QEX[qEx].t; qRun(); };
+$('#q-out').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b){ showTab(b.dataset.go); window.scrollTo({top:0}); } });
+
 /* ---------- Arranque ---------- */
 cScenChips(); cRender();
 wStart();
 aLoad(0);
 $('#g-text').value = EXAMPLES[0].t; gRender();
+$('#q-text').value = QEX[0].t; qRun();
 let start = location.hash.slice(1);
-if (!TABS.includes(start)){ try { start = localStorage.getItem('atalaya-tab') || 'cascada'; } catch(e){ start = 'cascada'; } }
+if (!TABS.includes(start)){ try { start = localStorage.getItem('atalaya-tab') || 'inicio'; } catch(e){ start = 'inicio'; } }
 showTab(start);
 window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
 })();
