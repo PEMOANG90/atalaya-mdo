@@ -25,6 +25,11 @@ El botón **Consultar fuentes abiertas** busca, sin claves ni cuentas, informaci
 
 Las condiciones relevantes (oleaje alto, ráfagas fuertes, tormenta geomagnética, sismo cercano) se agregan automáticamente al análisis de los cuatro módulos. Solo se envían el lugar y palabras clave, no el texto completo.
 
+## Imágenes satelitales y fuentes oficiales
+
+- **Entorno geográfico satelital:** mapa interactivo del lugar con imagen de alta resolución (Esri) o la imagen del día anterior de NASA (MODIS), con los sismos y eventos naturales cercanos marcados. Incluye la imagen GOES más reciente de México y las perspectivas de ciclones tropicales del Atlántico y del Pacífico (NOAA/NHC).
+- **Fuentes oficiales:** SEMAR (meteorología marítima y comunicados), CONAGUA (Servicio Meteorológico Nacional) y Protección Civil (CNPC, Atlas Nacional de Riesgos y SASMEX). Como no publican datos que una página web pueda leer, el sitio enlaza a su portal y a una búsqueda de sus avisos recientes sobre el lugar, y marca como prioritarias las que corresponden a la noticia.
+
 ## Módulos avanzados
 
 | Módulo | Qué hace |

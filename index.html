@@ -3,11 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Suite académica de análisis para operaciones multidominio: pega una noticia, consulta fuentes abiertas y obtén el análisis de cascada, respuestas, ejercicio y confiabilidad.">
+<meta name="description" content="Suite académica de análisis para operaciones multidominio: pega una noticia, consulta fuentes abiertas e imágenes satelitales y obtén el análisis de cascada, respuestas, ejercicio y confiabilidad.">
 <title>Atalaya MDO</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 /* Consola de estado mayor: franja de clasificación, barra de módulos, controles a la izquierda y lectura a la derecha; seis colores fijos, uno por dominio */
 :root{
@@ -53,7 +55,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .brand p{font-family:var(--f-mono);font-size:12px;color:var(--muted);letter-spacing:.04em}
 .top .lede{max-width:52ch;color:var(--muted);font-size:14px;min-width:0}
 
-.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:1100;background:var(--bg);border-bottom:1px solid var(--line)}
 .tabs .wrap{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
 .tab{appearance:none;border:0;background:none;padding:14px 14px 12px;cursor:pointer;display:flex;gap:8px;align-items:baseline;white-space:nowrap;border-bottom:3px solid transparent;color:var(--muted)}
 .tab .code{font-family:var(--f-mono);font-size:11px}
@@ -195,6 +197,14 @@ mark{background:color-mix(in srgb,var(--mc) 22%,transparent);color:inherit;borde
 .qcard h3 .n{font-family:var(--f-mono);font-size:13px;color:var(--accent)}
 .qcard ul{margin:0;padding-left:18px;display:grid;gap:7px;font-size:14.5px}
 .q-more{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:14px;color:var(--muted)}
+.qmap{height:400px;border-radius:6px;border:1px solid var(--line);background:var(--surface2);margin-top:10px}
+@media (max-width:520px){.qmap{height:300px}}
+.sat{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
+@media (max-width:760px){.sat{grid-template-columns:minmax(0,1fr)}}
+.sat figure{margin:0;display:grid;gap:6px;min-width:0}
+.sat img{width:100%;aspect-ratio:4/3;object-fit:contain;border-radius:5px;border:1px solid var(--line);background:var(--surface2)}
+.sat figcaption{font-size:12.5px;color:var(--muted)}
+.leaflet-container{font-family:var(--f-body)}
 footer{border-top:1px solid var(--line);padding-block:20px 36px;font-size:13px;color:var(--muted)}
 footer .wrap{display:grid;gap:6px;max-width:1180px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -989,7 +999,8 @@ const ADVICE = {
 };
 let qEx = 0;
 /* ---------- Fuentes abiertas (OSINT) ---------- */
-let Q = {text:'', osint:null, extra:{}, why:{}, corrob:null, busy:false};
+let Q = {text:'', osint:null, extra:{}, why:{}, corrob:null, busy:false, pts:[]};
+let qMap = null;
 const PLACES = [
   ['Veracruz',19.19,-96.13],['Manzanillo',19.05,-104.31],['Lázaro Cárdenas',17.96,-102.19],['Altamira',22.39,-97.94],['Tampico',22.25,-97.86],
   ['Coatzacoalcos',18.14,-94.41],['Progreso',21.28,-89.66],['Ensenada',31.87,-116.6],['Mazatlán',23.22,-106.42],['Guaymas',27.92,-110.9],
@@ -1022,6 +1033,7 @@ async function qOsint(){
   const terms = [...new Set([...evs, ...ids.map(id => SEARCH[id])])].slice(0,4);
   let place = findPlace(txt);
   const src = [], extra = {}, why = {}, notes = [];
+  Q.pts = [];
   const add = (id, v, w) => { if ((p.init[id]||0) < v && (extra[id]||0) < v){ extra[id] = v; why[id] = w; } };
   // 1. Ubicación
   if (place && !place.known){
@@ -1087,6 +1099,7 @@ async function qOsint(){
   if (place && place.lat != null) jobs.push((async () => {
     const d = await getJSON('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson');
     const near = (d.features || []).map(f => ({m:f.properties.mag, pl:f.properties.place, t:f.properties.time, u:f.properties.url, k:km(place.lat, place.lon, f.geometry.coordinates[1], f.geometry.coordinates[0])})).filter(x => x.k <= 400).sort((a,b) => b.m-a.m);
+    near.slice(0,10).forEach(x => { const f = (d.features||[]).find(ft => ft.properties.url === x.u); if (f) Q.pts.push({lat:f.geometry.coordinates[1], lon:f.geometry.coordinates[0], t:`Sismo M${x.m.toFixed(1)} · ${x.pl}`, c:'#B3261E'}); });
     if (near[0] && near[0].m >= 6 && near[0].k <= 300){ add('elec', .6, 'sismo cercano'); add('carr', .5, 'sismo cercano'); }
     return {n:'USGS · sismos', ok:true, link:'https://earthquake.usgs.gov/earthquakes/map/',
       msg: near.length ? `${near.length} sismo${near.length>1?'s':''} de magnitud 4.5 o mayor a menos de 400 km en 7 días. El mayor: M${near[0].m.toFixed(1)}, ${near[0].pl} (${fdate(near[0].t)}).` : 'Sin sismos de magnitud 4.5 o mayor a menos de 400 km en los últimos 7 días.',
@@ -1098,6 +1111,7 @@ async function qOsint(){
     const d = await getJSON(`https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=20&bbox=${b}`);
     const last = e => { const g = (e.geometry || []).filter(x => x.type === 'Point'); return g.length ? g[g.length-1].coordinates : null; };
     const evts = (d.events || []).map(e => { const c = last(e); return {...e, k: c ? km(place.lat, place.lon, c[1], c[0]) : Infinity}; }).filter(e => e.k <= 1000).sort((a,b) => a.k - b.k);
+    evts.forEach(e => { const c = last(e); if (c) Q.pts.push({lat:c[1], lon:c[0], t:`${e.title} (${Math.round(e.k)} km)`, c:'#CC5A24'}); });
     if (evts.some(e => e.k <= 500 && (e.categories||[]).some(c => c.id === 'severeStorms')) && !p.init.elec){ add('elec', .5, 'tormenta activa cercana'); add('puerto', .5, 'tormenta activa cercana'); }
     return {n:'NASA EONET · eventos naturales', ok:true, link:'https://eonet.gsfc.nasa.gov/',
       msg: evts.length ? `${evts.length} evento${evts.length>1?'s':''} natural${evts.length>1?'es':''} activo${evts.length>1?'s':''} a menos de 1 000 km.` : 'Sin eventos naturales activos a menos de 1 000 km.',
@@ -1124,7 +1138,7 @@ function osintHTML(){
   const o = Q.osint;
   if (!o) return `<h3><span class="n">7</span>Contexto de fuentes abiertas</h3>
     <p style="font-size:14.5px">Consulta en fuentes públicas si otros medios reportan el tema, el clima y oleaje en el lugar, el clima espacial, sismos y eventos naturales cercanos. Si encuentra condiciones relevantes, las agrega al análisis de los cuatro módulos.</p>
-    <div style="margin-top:12px"><button class="btn" type="button" data-osint>Consultar fuentes abiertas</button></div>
+    <div style="margin-top:12px"><button class="btn" type="button" data-osint>Consultar fuentes abiertas e imágenes</button></div>
     <p class="hint">Solo se envían el lugar y las palabras clave detectadas, no el texto completo. Requiere conexión a internet.</p>`;
   const adj = Object.keys(Q.extra);
   return `<h3><span class="n">7</span>Contexto de fuentes abiertas</h3>
@@ -1135,13 +1149,65 @@ function osintHTML(){
     <div class="scroll-x" style="margin-top:10px"><table class="t"><thead><tr><th>Fuente</th><th>Hallazgo</th></tr></thead><tbody>${o.src.map(x => `<tr><td style="min-width:150px"><b>${esc(x.n)}</b><br>${x.ok ? `<a href="${esc(x.link)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:12px">ver fuente</a>` : '<span class="sev" style="--sc:var(--muted)">sin respuesta</span>'}${x.link && !x.ok ? `<br><a href="${esc(x.link)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:12px">${esc(x.linkLabel || 'ver fuente')}</a>` : ''}${x.link2 ? `<br><a href="${esc(x.link2)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:12px">buscar en Google Noticias</a>` : ''}</td><td>${esc(x.msg)}${x.list && x.list.length ? `<ul style="margin:6px 0 0;padding-left:18px;font-size:13px">${x.list.map(l => `<li><a href="${esc(l.u)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(l.t)}</a> <span class="muted">${esc(l.s)}</span></li>`).join('')}</ul>` : ''}</td></tr>`).join('')}</tbody></table></div>
     <div style="margin-top:12px"><button class="btn ghost" type="button" data-osint>Volver a consultar</button></div>`;
 }
+/* ---------- Entorno geográfico satelital ---------- */
+const yday = () => { const d = new Date(Date.now() - 864e5); return d.toISOString().slice(0,10); };
+const hourTag = () => Math.floor(Date.now() / 6e5);
+function geoHTML(){
+  const o = Q.osint;
+  if (!o || !o.place || o.place.lat == null) return '';
+  const t = hourTag();
+  return `<div class="card qcard"><h3><span class="n">8</span>Entorno geográfico satelital</h3>
+    <p class="muted" style="font-size:13px">${esc(o.place.name)} · ${o.place.lat.toFixed(2)}, ${o.place.lon.toFixed(2)}. Cambia de capa con el control del mapa: imagen satelital de alta resolución o la imagen de NASA del ${yday()} para ver nubosidad reciente.</p>
+    ${inFrame || typeof L === 'undefined' ? `<div class="notice" style="margin-top:10px">El mapa interactivo se muestra en la versión publicada en GitHub Pages.</div>` : `<div class="qmap" id="q-map" role="region" aria-label="Mapa satelital del lugar"></div>`}
+    <div class="sat">
+      <figure><a href="https://www.star.nesdis.noaa.gov/goes/sector.php?sat=G19&sector=mex" target="_blank" rel="noopener"><img alt="Imagen GOES más reciente de México" loading="lazy" src="https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/mex/GEOCOLOR/1000x1000.jpg?t=${t}" onerror="if(!this.dataset.f){this.dataset.f=1;this.src='https://cdn.star.nesdis.noaa.gov/GOES16/ABI/SECTOR/mex/GEOCOLOR/1000x1000.jpg?t=${t}'}else{this.replaceWith(Object.assign(document.createElement('p'),{className:'muted',textContent:'Imagen no disponible en este momento.'}))}"></a><figcaption>Satélite GOES (NOAA): México en color natural, se actualiza cada 10 minutos.</figcaption></figure>
+      <figure><a href="https://www.nhc.noaa.gov/gtwo.php?basin=atlc&fdays=7" target="_blank" rel="noopener"><img alt="Perspectiva de ciclones tropicales del Atlántico" loading="lazy" src="https://www.nhc.noaa.gov/xgtwo/two_atl_7d0.png?t=${t}"></a><figcaption>Ciclones tropicales, Atlántico y Golfo de México (NHC), 7 días.</figcaption></figure>
+      <figure><a href="https://www.nhc.noaa.gov/gtwo.php?basin=epac&fdays=7" target="_blank" rel="noopener"><img alt="Perspectiva de ciclones tropicales del Pacífico" loading="lazy" src="https://www.nhc.noaa.gov/xgtwo/two_pac_7d0.png?t=${t}"></a><figcaption>Ciclones tropicales, Pacífico oriental (NHC), 7 días.</figcaption></figure>
+    </div></div>`;
+}
+function qMapInit(){
+  if (qMap){ try { qMap.remove(); } catch(e){} qMap = null; }
+  const el = document.getElementById('q-map');
+  if (!el || typeof L === 'undefined' || !Q.osint || !Q.osint.place) return;
+  const pl = Q.osint.place;
+  qMap = L.map(el, {scrollWheelZoom:false}).setView([pl.lat, pl.lon], 9);
+  const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:18, attribution:'Imágenes © Esri, Maxar, Earthstar Geographics'});
+  const nasa = L.tileLayer(`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${yday()}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`, {maxNativeZoom:9, maxZoom:18, attribution:'NASA GIBS · MODIS Terra'});
+  const labels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {maxZoom:18});
+  esri.addTo(qMap); labels.addTo(qMap);
+  L.control.layers({'Satélite alta resolución (Esri)': esri, [`Satélite del día (NASA, ${yday()})`]: nasa}, {'Nombres y límites': labels}).addTo(qMap);
+  L.circleMarker([pl.lat, pl.lon], {radius:9, color:'#fff', weight:2, fillColor:'#0A5A78', fillOpacity:1}).addTo(qMap).bindPopup(`<b>${esc(pl.name)}</b><br>Lugar de la noticia`);
+  L.circle([pl.lat, pl.lon], {radius:50000, color:'#62B6D6', weight:1, fill:false, dashArray:'4 4'}).addTo(qMap);
+  (Q.pts || []).forEach(x => L.circleMarker([x.lat, x.lon], {radius:7, color:'#fff', weight:1.5, fillColor:x.c, fillOpacity:.95}).addTo(qMap).bindPopup(esc(x.t)));
+}
+/* ---------- Fuentes oficiales: SEMAR, CONAGUA, Protección Civil ---------- */
+function officialLinks(place){
+  const pl = place ? place.name.split(',')[0] : '';
+  const gn = q => `https://news.google.com/search?q=${encodeURIComponent(q)}&hl=es-419&gl=MX&ceid=MX:es-419`;
+  return [
+    {inst:'SEMAR', n:'SEMAR · Meteorología marítima', d:'Boletines y avisos meteorológicos marítimos, estado del mar por litoral.', u:'https://meteorologia.semar.gob.mx/', q: gn(`SEMAR aviso meteorológico ${pl}`)},
+    {inst:'SEMAR', n:'SEMAR · Comunicados', d:'Comunicados oficiales de la Secretaría de Marina y Capitanías de Puerto.', u:'https://www.gob.mx/semar/archivo/prensa', q: gn(`Secretaría de Marina ${pl}`)},
+    {inst:'CONAGUA', n:'CONAGUA · Servicio Meteorológico Nacional', d:'Pronósticos, avisos de ciclón tropical, imágenes de satélite y radar.', u:'https://smn.conagua.gob.mx/es/', q: gn(`SMN Conagua aviso ${pl}`)},
+    {inst:'Protección Civil', n:'Coordinación Nacional de Protección Civil', d:'Alertas, recomendaciones y declaratorias de emergencia.', u:'https://www.gob.mx/cnpc', q: gn(`Protección Civil ${pl}`)},
+    {inst:'Protección Civil', n:'Atlas Nacional de Riesgos (CENAPRED)', d:'Peligros y vulnerabilidad por municipio: inundación, sismo, ciclones.', u:'http://www.atlasnacionalderiesgos.gob.mx/', q: gn(`CENAPRED ${pl}`)},
+    {inst:'Protección Civil', n:'SASMEX · Alerta sísmica', d:'Sistema de alerta sísmica mexicano y alertas recientes.', u:'https://www.sasmex.net/', q: gn(`alerta sísmica ${pl}`)}
+  ];
+}
+function officialHTML(place, ids){
+  const pl = place ? place.name.split(',')[0] : '';
+  const L1 = officialLinks(place);
+  const rel = {SEMAR: ids.some(id => ['puerto','vts','patr','pesca','meteo','sar'].includes(id)), CONAGUA: ids.some(id => ['meteo','elec','carr','puerto','aero','pesca'].includes(id)) || /hurac|tormenta|lluvia|ciclon|inund/i.test(Q.text.normalize('NFD').replace(/[̀-ͯ]/g,'')), 'Protección Civil': ids.some(id => ['hosp','conf','elec','carr','rum'].includes(id))};
+  return `<div class="card qcard"><h3><span class="n">${Q.osint && Q.osint.place && Q.osint.place.lat != null ? 9 : 8}</span>Fuentes oficiales para confirmar</h3>
+    <p style="font-size:14.5px">SEMAR, CONAGUA y Protección Civil no ofrecen datos que una página web pueda leer directamente, así que aquí tienes su sitio oficial y una búsqueda de sus avisos más recientes${pl ? ` sobre <b>${esc(pl)}</b>` : ''}. Las marcadas como prioritarias corresponden a lo que describe la noticia.</p>
+    <div class="scroll-x" style="margin-top:10px"><table class="t"><thead><tr><th>Institución</th><th>Qué revisar</th><th>Enlaces</th></tr></thead><tbody>${L1.map(o => `<tr><td style="min-width:160px"><b>${esc(o.n)}</b>${rel[o.inst] ? '<br><span class="sev" style="--sc:var(--accent)">prioritaria</span>' : ''}</td><td>${esc(o.d)}</td><td style="white-space:nowrap"><a href="${esc(o.u)}" target="_blank" rel="noopener" style="color:var(--accent)">sitio oficial</a><br><a href="${esc(o.q)}" target="_blank" rel="noopener" style="color:var(--accent)">avisos recientes</a></td></tr>`).join('')}</tbody></table></div></div>`;
+}
 function qRun(){
   const txt = $('#q-text').value.trim(), out = $('#q-out');
   $('#q-ex').innerHTML = QEX.map((x,i) => `<button class="chipbtn" type="button" data-i="${i}" aria-pressed="${qEx===i}">${esc(x.n)}</button>`).join('');
   if (txt.length < 15){ out.innerHTML = '<div class="card muted">Pega una noticia de al menos una oración para ver el análisis.</div>'; $('#q-report').hidden = true; return; }
   $('#q-report').hidden = false;
   // 1. Cascada a partir del texto (también actualiza el módulo avanzado)
-  if (Q.text !== txt) Q = {text:txt, osint:null, extra:{}, why:{}, corrob:null, busy:false};
+  if (Q.text !== txt) Q = {text:txt, osint:null, extra:{}, why:{}, corrob:null, busy:false, pts:[]};
   const p = cParse(txt);
   for (const id in Q.extra){ if ((p.init[id]||0) < Q.extra[id]){ p.init[id] = Q.extra[id]; p.why[id] = 'fuente abierta: ' + Q.why[id]; } }
   const ids = Object.keys(p.init);
@@ -1216,6 +1282,8 @@ function qRun(){
     ${coa ? `<div class="qgrid"><div class="card qcard"><h3><span class="n">5</span>¿Qué respuesta conviene?</h3><div class="rank">${coa.ord.map((i,k) => `<div class="bar" style="--dc:${k===0?'var(--accent)':'var(--muted)'}"><span class="name"><b class="mono">${'ABC'[i]}</b> ${esc(coa.names[i])}</span><div class="track"><div class="fill" style="width:${coa.tt[i].toFixed(1)}%"></div></div><span class="num">${coa.tt[i].toFixed(0)}</span></div>`).join('')}</div><p style="margin-top:10px;font-size:14px">Recomendada: <b>${esc(coa.names[coa.ord[0]])}</b>. ${coa.flips ? `La elección cambia en ${coa.flips} prueba${coa.flips>1?'s':''} de sensibilidad; conviene discutirla en grupo.` : 'Se mantiene aunque cambien las prioridades.'}</p></div>
     <div class="card qcard"><h3><span class="n">6</span>Practica la respuesta</h3><p style="font-size:14.5px">Preparé un ejercicio de mesa de ${TURNS} turnos que arranca con esta noticia. Los indicadores iniciales reflejan el daño estimado y los eventos siguientes se concentran en ${esc(W.news.doms.slice(0,3).map(d => DOM[d].n.toLowerCase()).join(', '))}.</p><div style="margin-top:12px"><button class="btn" type="button" data-go="ejercicio">Iniciar ejercicio</button></div></div></div>` : ''}
     <div class="card qcard" id="q-osint">${osintHTML()}</div>
+    ${geoHTML()}
+    ${officialHTML(Q.osint && Q.osint.place ? Q.osint.place : findPlace(txt), ids)}
     <p class="hint">Cómo se conecta: la cascada (M1) califica las respuestas (M3) y prepara el ejercicio (M2); la confiabilidad de la noticia (M4) ajusta la legitimidad y el peso de la comunicación; las fuentes abiertas agregan condiciones reales y corroboración a todo el análisis.</p>
     <div class="q-more">Para ver más detalle:<button class="chipbtn" type="button" data-go="cascada">Mapa de la cascada</button><button class="chipbtn" type="button" data-go="coa">Matriz de respuestas</button><button class="chipbtn" type="button" data-go="cognitivo">Texto marcado</button></div>`;
   report($('#q-report'), 'Análisis rápido multidominio', `Nivel general: ${lvl[0].toLowerCase()}`, [
@@ -1226,8 +1294,10 @@ function qRun(){
     {h:'Acciones prioritarias', items: actions},
     ...(coa ? [{h:'Cursos de acción comparados', items: coa.ord.map(i => `${'ABC'[i]}. ${coa.names[i]}: ${coa.tt[i].toFixed(1)}/100`).concat([coa.flips ? `Decisión sensible: cambia en ${coa.flips} prueba(s) de peso.` : 'Decisión robusta ante cambios de peso.'])}] : []),
     {h:'Confiabilidad de la noticia', p:`Índice de señales de manipulación ${g.score}/100 (${glv.toLowerCase()}). ${gTips.map(x => x.g.n).join('; ') || 'Sin señales fuertes.'}`},
-    ...(Q.osint ? [{h:'Fuentes abiertas consultadas', items: Q.osint.src.map(x => `${x.n}: ${x.msg}${x.ok && x.link ? ' (' + x.link + ')' : ''}`).concat(Q.osint.notes)}] : [])
+    ...(Q.osint ? [{h:'Fuentes abiertas consultadas', items: Q.osint.src.map(x => `${x.n}: ${x.msg}${x.ok && x.link ? ' (' + x.link + ')' : ''}`).concat(Q.osint.notes)}] : []),
+    {h:'Fuentes oficiales para confirmar', items: officialLinks(Q.osint && Q.osint.place ? Q.osint.place : findPlace(txt)).map(o => `${o.n}: ${o.u}`)}
   ]);
+  qMapInit();
 }
 $('#q-go').onclick = () => { qEx = -1; qRun(); $('#q-out').scrollIntoView({behavior:'smooth', block:'start'}); };
 $('#q-text').oninput = () => { qEx = -1; };
