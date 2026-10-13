@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Suite académica de análisis para operaciones multidominio: pega una noticia y los cuatro módulos generan el análisis de cascada, respuestas, ejercicio y confiabilidad.">
+<meta name="description" content="Suite académica de análisis para operaciones multidominio: pega una noticia, consulta fuentes abiertas y obtén el análisis de cascada, respuestas, ejercicio y confiabilidad.">
 <title>Atalaya MDO</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -988,13 +988,144 @@ const ADVICE = {
   voc:'Dar un mensaje oficial temprano, con datos verificables, para frenar rumores.'
 };
 let qEx = 0;
+/* ---------- Fuentes abiertas (OSINT) ---------- */
+let Q = {text:'', osint:null, extra:{}, why:{}, corrob:null, busy:false};
+const PLACES = [
+  ['Veracruz',19.19,-96.13],['Manzanillo',19.05,-104.31],['Lázaro Cárdenas',17.96,-102.19],['Altamira',22.39,-97.94],['Tampico',22.25,-97.86],
+  ['Coatzacoalcos',18.14,-94.41],['Progreso',21.28,-89.66],['Ensenada',31.87,-116.6],['Mazatlán',23.22,-106.42],['Guaymas',27.92,-110.9],
+  ['Salina Cruz',16.17,-95.2],['Acapulco',16.85,-99.88],['Cancún',21.16,-86.85],['Cozumel',20.51,-86.95],['Puerto Vallarta',20.65,-105.23],
+  ['Topolobampo',25.6,-109.05],['Tuxpan',20.95,-97.4],['Dos Bocas',18.43,-93.18],['Ciudad del Carmen',18.65,-91.83],['Puerto Chiapas',14.7,-92.4],
+  ['La Paz',24.14,-110.31],['Campeche',19.85,-90.53],['Chetumal',18.5,-88.3],['Tijuana',32.53,-117.04],['Ciudad de México',19.43,-99.13],
+  ['Mérida',20.97,-89.62],['Monterrey',25.67,-100.31],['Guadalajara',20.67,-103.35],['Oaxaca',17.06,-96.72],['Tabasco',17.99,-92.93]
+];
+const SEARCH = {gnss:'GPS', satcom:'satélite', meteo:'pronóstico', redcc:'comunicaciones', scada:'ciberataque', dns:'hackeo', elec:'apagón', carr:'carretera', comb:'combustible', hosp:'hospital', puerto:'puerto', vts:'buques', patr:'Marina', pesca:'pescadores', aero:'aeropuerto', atc:'vuelos', sar:'rescate', voc:'autoridades', rum:'rumores', conf:'protesta'};
+const EVSEARCH = {huracan:'huracán', 'tormenta tropical':'tormenta tropical', ciclon:'ciclón', inundacion:'inundación', marejada:'marejada', tsunami:'tsunami', sismo:'sismo', terremoto:'terremoto', 'tormenta solar':'tormenta solar', 'tormenta geomagnetica':'tormenta geomagnética'};
+function findPlace(txt){
+  const n = Array.from(txt).map(normChar).join('');
+  for (const pl of PLACES){ const k = Array.from(pl[0]).map(normChar).join(''); if (kwRe(k).test(n)) return {name:pl[0], lat:pl[1], lon:pl[2], known:true}; }
+  const m = txt.match(/\b(?:en|de|cerca de|puerto de)\s+([A-ZÁÉÍÓÚÑ][\wáéíóúñ]+(?:\s+(?:de\s+)?[A-ZÁÉÍÓÚÑ][\wáéíóúñ]+)?)/);
+  return m ? {name:m[1], known:false} : null;
+}
+async function getJSON(url, ms){
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms || 12000);
+  try { const r = await fetch(url, {signal:ctl.signal}); if (!r.ok) throw new Error('HTTP ' + r.status); return await r.json(); }
+  finally { clearTimeout(t); }
+}
+const km = (a,b,c,d) => { const R = 6371, t = x => x*Math.PI/180, dl = t(c-a), dg = t(d-b); const h = Math.sin(dl/2)**2 + Math.cos(t(a))*Math.cos(t(c))*Math.sin(dg/2)**2; return 2*R*Math.asin(Math.sqrt(h)); };
+const fdate = ms => new Date(ms).toLocaleDateString('es-MX', {day:'numeric', month:'short'});
+async function qOsint(){
+  if (Q.busy) return; Q.busy = true;
+  const box = $('#q-osint'); if (box) box.innerHTML = '<h3><span class="n">7</span>Contexto de fuentes abiertas</h3><p class="muted">Consultando GDELT, Open-Meteo, NOAA, USGS, NASA EONET y Wikipedia…</p>';
+  const txt = Q.text, p = cParse(txt);
+  const ids = Object.keys(p.init).sort((a,b) => p.init[b]-p.init[a]);
+  const evs = [...new Set(Object.values(p.why).filter(w => EVSEARCH[w]).map(w => EVSEARCH[w]))];
+  const terms = [...new Set([...evs, ...ids.map(id => SEARCH[id])])].slice(0,4);
+  let place = findPlace(txt);
+  const src = [], extra = {}, why = {}, notes = [];
+  const add = (id, v, w) => { if ((p.init[id]||0) < v && (extra[id]||0) < v){ extra[id] = v; why[id] = w; } };
+  // 1. Ubicación
+  if (place && !place.known){
+    try { const g = await getJSON(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(place.name)}&count=1&language=es`); const r0 = g.results && g.results[0]; if (r0) place = {name:`${r0.name}${r0.admin1 ? ', ' + r0.admin1 : ''}${r0.country ? ', ' + r0.country : ''}`, lat:r0.latitude, lon:r0.longitude}; else place = null; } catch(e){ place = null; }
+  }
+  const jobs = [];
+  // 2. Cobertura en medios (corroboración)
+  jobs.push((async () => {
+    if (!terms.length) return {n:'GDELT · medios', ok:false, msg:'Sin términos para buscar.'};
+    const q = (place ? `"${place.name.split(',')[0]}" ` : '') + (terms.length > 1 ? `(${terms.join(' OR ')})` : terms[0]) + ' sourcelang:spanish';
+    const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(q)}&mode=artlist&format=json&maxrecords=15&timespan=7d&sort=datedesc`;
+    const d = await getJSON(url, 15000);
+    const arts = (d.articles || []);
+    const doms = [...new Set(arts.map(a => a.domain))];
+    Q.corrob = {n:arts.length, doms:doms.length};
+    return {n:'GDELT · medios', ok:true, link:`https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(q)}&mode=artlist&timespan=7d`,
+      msg: arts.length ? `${arts.length} nota${arts.length>1?'s':''} en ${doms.length} medio${doms.length>1?'s':''} durante los últimos 7 días (búsqueda: ${q}).` : `Ningún medio indexado reporta el tema en los últimos 7 días (búsqueda: ${q}).`,
+      list: arts.slice(0,5).map(a => ({t:a.title, u:a.url, s:`${a.domain}`}))};
+  })());
+  // 3. Clima y oleaje en el lugar
+  if (place && place.lat != null) jobs.push((async () => {
+    const [w, m] = await Promise.all([
+      getJSON(`https://api.open-meteo.com/v1/forecast?latitude=${place.lat}&longitude=${place.lon}&current=temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m&timezone=auto`),
+      getJSON(`https://marine-api.open-meteo.com/v1/marine?latitude=${place.lat}&longitude=${place.lon}&current=wave_height`).catch(() => null)
+    ]);
+    const c = w.current || {}, wave = m && m.current ? m.current.wave_height : null;
+    if (c.wind_gusts_10m >= 70){ add('aero', .5, 'ráfagas de viento'); add('pesca', .5, 'ráfagas de viento'); }
+    if (c.wind_gusts_10m >= 100) add('elec', .6, 'ráfagas de viento');
+    if (wave != null && wave >= 3){ add('pesca', .6, 'oleaje alto'); add('patr', .5, 'oleaje alto'); }
+    if (wave != null && wave >= 4) add('puerto', .5, 'oleaje alto');
+    return {n:'Open-Meteo · clima y oleaje', ok:true, link:`https://open-meteo.com/en/docs#latitude=${place.lat}&longitude=${place.lon}`,
+      msg:`${place.name}: viento ${Math.round(c.wind_speed_10m)} km/h con ráfagas de ${Math.round(c.wind_gusts_10m)} km/h, lluvia ${c.precipitation ?? 0} mm${wave != null ? `, oleaje ${wave.toFixed(1)} m` : ''}, ${Math.round(c.temperature_2m)} °C.`};
+  })());
+  // 4. Clima espacial
+  jobs.push((async () => {
+    const d = await getJSON('https://services.swpc.noaa.gov/products/noaa-scales.json');
+    const c = d['0'] || {}, sc = k => +((c[k] && c[k].Scale) || 0);
+    const G = sc('G'), R = sc('R'), S = sc('S');
+    if (G >= 3 || R >= 3) add('gnss', .6, 'clima espacial');
+    if (S >= 3 || R >= 3) add('satcom', .55, 'clima espacial');
+    return {n:'NOAA SWPC · clima espacial', ok:true, link:'https://www.swpc.noaa.gov/noaa-scales-explanation',
+      msg:`Escalas actuales: tormenta geomagnética G${G}, apagón de radio R${R}, radiación solar S${S}. ${G>=3||R>=3||S>=3 ? 'Nivel capaz de degradar GPS y comunicaciones satelitales.' : 'Sin efecto relevante esperado en GPS ni satélites.'}`};
+  })());
+  // 5. Sismos
+  if (place && place.lat != null) jobs.push((async () => {
+    const d = await getJSON('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson');
+    const near = (d.features || []).map(f => ({m:f.properties.mag, pl:f.properties.place, t:f.properties.time, u:f.properties.url, k:km(place.lat, place.lon, f.geometry.coordinates[1], f.geometry.coordinates[0])})).filter(x => x.k <= 400).sort((a,b) => b.m-a.m);
+    if (near[0] && near[0].m >= 6 && near[0].k <= 300){ add('elec', .6, 'sismo cercano'); add('carr', .5, 'sismo cercano'); }
+    return {n:'USGS · sismos', ok:true, link:'https://earthquake.usgs.gov/earthquakes/map/',
+      msg: near.length ? `${near.length} sismo${near.length>1?'s':''} de magnitud 4.5 o mayor a menos de 400 km en 7 días. El mayor: M${near[0].m.toFixed(1)}, ${near[0].pl} (${fdate(near[0].t)}).` : 'Sin sismos de magnitud 4.5 o mayor a menos de 400 km en los últimos 7 días.',
+      list: near.slice(0,3).map(x => ({t:`M${x.m.toFixed(1)} · ${x.pl}`, u:x.u, s:`${Math.round(x.k)} km · ${fdate(x.t)}`}))};
+  })());
+  // 6. Eventos naturales activos
+  if (place && place.lat != null) jobs.push((async () => {
+    const b = [place.lon-6, place.lat+6, place.lon+6, place.lat-6].map(v => v.toFixed(2)).join(',');
+    const d = await getJSON(`https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=20&bbox=${b}`);
+    const evts = d.events || [];
+    if (evts.some(e => (e.categories||[]).some(c => c.id === 'severeStorms')) && !p.init.elec){ add('elec', .5, 'tormenta activa cercana'); add('puerto', .5, 'tormenta activa cercana'); }
+    return {n:'NASA EONET · eventos naturales', ok:true, link:'https://eonet.gsfc.nasa.gov/',
+      msg: evts.length ? `${evts.length} evento${evts.length>1?'s':''} natural${evts.length>1?'es':''} activo${evts.length>1?'s':''} en la región.` : 'Sin eventos naturales activos registrados en la región.',
+      list: evts.slice(0,4).map(e => ({t:e.title, u:(e.sources&&e.sources[0]&&e.sources[0].url)||'https://eonet.gsfc.nasa.gov/', s:(e.categories||[]).map(c => c.title).join(', ')}))};
+  })());
+  // 7. Contexto del lugar
+  if (place) jobs.push((async () => {
+    const d = await getJSON(`https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(place.name.split(',')[0].replace(/ /g,'_'))}`);
+    const ex = (d.extract || '').split('. ').slice(0,2).join('. ');
+    return {n:'Wikipedia · contexto del lugar', ok:!!ex, link: d.content_urls && d.content_urls.desktop ? d.content_urls.desktop.page : 'https://es.wikipedia.org', msg: ex ? ex.replace(/\.?$/, '.') : 'Sin resumen disponible.'};
+  })());
+  const res = await Promise.allSettled(jobs);
+  const names = ['GDELT · medios','Open-Meteo · clima y oleaje','NOAA SWPC · clima espacial','USGS · sismos','NASA EONET · eventos naturales','Wikipedia · contexto del lugar'];
+  res.forEach((r,i) => src.push(r.status === 'fulfilled' ? r.value : {n: null, ok:false, err:true, msg: r.reason && r.reason.name === 'AbortError' ? 'La fuente tardó demasiado en responder.' : 'No se pudo consultar.'}));
+  // nombra las fuentes fallidas según el orden en que se lanzaron
+  const launched = ['GDELT · medios'].concat(place && place.lat != null ? ['Open-Meteo · clima y oleaje'] : [], ['NOAA SWPC · clima espacial'], place && place.lat != null ? ['USGS · sismos','NASA EONET · eventos naturales'] : [], place ? ['Wikipedia · contexto del lugar'] : []);
+  src.forEach((x,i) => { if (!x.n) x.n = launched[i]; });
+  if (Q.corrob) notes.push(Q.corrob.n >= 3 && Q.corrob.doms >= 2 ? `La noticia está corroborada por ${Q.corrob.doms} medios distintos, lo que reduce el peso de las señales de manipulación en la evaluación de respuestas.` : Q.corrob.n === 0 ? 'Ningún medio indexado reporta el tema: trata la noticia como no confirmada.' : 'La cobertura en medios es escasa: confirma con la autoridad responsable.');
+  Q.osint = {at:new Date(), place, src, notes, allFail: src.every(x => !x.ok)};
+  Q.extra = extra; Q.why = why; Q.busy = false;
+  qRun();
+}
+function osintHTML(){
+  const o = Q.osint;
+  if (!o) return `<h3><span class="n">7</span>Contexto de fuentes abiertas</h3>
+    <p style="font-size:14.5px">Consulta en fuentes públicas si otros medios reportan el tema, el clima y oleaje en el lugar, el clima espacial, sismos y eventos naturales cercanos. Si encuentra condiciones relevantes, las agrega al análisis de los cuatro módulos.</p>
+    <div style="margin-top:12px"><button class="btn" type="button" data-osint>Consultar fuentes abiertas</button></div>
+    <p class="hint">Solo se envían el lugar y las palabras clave detectadas, no el texto completo. Requiere conexión a internet.</p>`;
+  const adj = Object.keys(Q.extra);
+  return `<h3><span class="n">7</span>Contexto de fuentes abiertas</h3>
+    <p class="muted" style="font-size:13px">Consultado ${o.at.toLocaleString('es-MX', {dateStyle:'medium', timeStyle:'short'})}${o.place ? ` · lugar detectado: ${esc(o.place.name)}` : ' · no se detectó un lugar en la noticia'}</p>
+    ${o.allFail ? `<div class="notice" style="margin-top:10px">No se pudo consultar ninguna fuente.${inFrame ? ' La vista previa de Claude bloquea las conexiones externas: las consultas funcionan en la versión publicada en GitHub Pages.' : ' Revisa tu conexión a internet e inténtalo de nuevo.'}</div>` : ''}
+    ${adj.length ? `<div class="notice" style="margin-top:10px">Se agregaron al análisis ${adj.length} ${adj.length>1?'condiciones':'condición'} encontrada${adj.length>1?'s':''} en fuentes abiertas: ${adj.map(id => `${esc(NM[id].s)} (${esc(Q.why[id])})`).join(', ')}.</div>` : ''}
+    ${o.notes.map(n => `<p style="margin-top:10px;font-size:14.5px"><b>${esc(n)}</b></p>`).join('')}
+    <div class="scroll-x" style="margin-top:10px"><table class="t"><thead><tr><th>Fuente</th><th>Hallazgo</th></tr></thead><tbody>${o.src.map(x => `<tr><td style="min-width:150px"><b>${esc(x.n)}</b><br>${x.ok ? `<a href="${esc(x.link)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:12px">ver fuente</a>` : '<span class="sev" style="--sc:var(--muted)">sin respuesta</span>'}</td><td>${esc(x.msg)}${x.list && x.list.length ? `<ul style="margin:6px 0 0;padding-left:18px;font-size:13px">${x.list.map(l => `<li><a href="${esc(l.u)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(l.t)}</a> <span class="muted">${esc(l.s)}</span></li>`).join('')}</ul>` : ''}</td></tr>`).join('')}</tbody></table></div>
+    <div style="margin-top:12px"><button class="btn ghost" type="button" data-osint>Volver a consultar</button></div>`;
+}
 function qRun(){
   const txt = $('#q-text').value.trim(), out = $('#q-out');
   $('#q-ex').innerHTML = QEX.map((x,i) => `<button class="chipbtn" type="button" data-i="${i}" aria-pressed="${qEx===i}">${esc(x.n)}</button>`).join('');
   if (txt.length < 15){ out.innerHTML = '<div class="card muted">Pega una noticia de al menos una oración para ver el análisis.</div>'; $('#q-report').hidden = true; return; }
   $('#q-report').hidden = false;
   // 1. Cascada a partir del texto (también actualiza el módulo avanzado)
-  const p = cParse(txt), ids = Object.keys(p.init);
+  if (Q.text !== txt) Q = {text:txt, osint:null, extra:{}, why:{}, corrob:null, busy:false};
+  const p = cParse(txt);
+  for (const id in Q.extra){ if ((p.init[id]||0) < Q.extra[id]){ p.init[id] = Q.extra[id]; p.why[id] = 'fuente abierta: ' + Q.why[id]; } }
+  const ids = Object.keys(p.init);
   const r = ids.length ? simulate(p.init, .2, new Set()) : null;
   if (ids.length){ C.init = p.init; C.desc = txt; C.scen = -1; C.mit = new Set(); document.querySelectorAll('#c-mit input').forEach(i => i.checked = false); $('#c-txt').value = txt; cScenChips(); cRender(); }
   // 2. Confiabilidad del texto (también actualiza el módulo avanzado)
@@ -1029,7 +1160,7 @@ function qRun(){
     const sims = [simulate(p.init, .2, new Set(topM)), simulate(p.init, .35, new Set(MITS.map(m => m.id))), simulate(p.init, .25, new Set())];
     const GR = [['MAR'], ['AIR','ESP'], ['CIB','INF']];
     const eff = (sim, gi) => { const ns = NODES.filter(x => GR[gi].includes(x.d) && !(x.id in p.init)); const base = ns.reduce((a,x) => a + (r.imp[x.id]||0), 0); if (base < .05) return 3; const now = ns.reduce((a,x) => a + (sim.imp[x.id]||0), 0); return Math.max(1, Math.min(5, Math.round(1 + 4*(base-now)/base))); };
-    const hot = cScore >= 45, rumors = g.score >= 50;
+    const hot = cScore >= 45, rumors = g.score >= 50 && !(Q.corrob && Q.corrob.n >= 3 && Q.corrob.doms >= 2);
     const names = [`Contención priorizada: ${topM.map(id => SHORT[id]).join(', ')}`, 'Movilización total en los dominios afectados', 'Monitoreo y escalamiento gradual'];
     const fixed = [[4,3,4,5], [2,1,3,3], [hot?2:4, 5, 5, rumors?2:3]];
     const scores = sims.map((sim,i) => [eff(sim,0), eff(sim,1), eff(sim,2), ...fixed[i]]);
@@ -1065,7 +1196,8 @@ function qRun(){
     </div>
     ${coa ? `<div class="qgrid"><div class="card qcard"><h3><span class="n">5</span>¿Qué respuesta conviene?</h3><div class="rank">${coa.ord.map((i,k) => `<div class="bar" style="--dc:${k===0?'var(--accent)':'var(--muted)'}"><span class="name"><b class="mono">${'ABC'[i]}</b> ${esc(coa.names[i])}</span><div class="track"><div class="fill" style="width:${coa.tt[i].toFixed(1)}%"></div></div><span class="num">${coa.tt[i].toFixed(0)}</span></div>`).join('')}</div><p style="margin-top:10px;font-size:14px">Recomendada: <b>${esc(coa.names[coa.ord[0]])}</b>. ${coa.flips ? `La elección cambia en ${coa.flips} prueba${coa.flips>1?'s':''} de sensibilidad; conviene discutirla en grupo.` : 'Se mantiene aunque cambien las prioridades.'}</p></div>
     <div class="card qcard"><h3><span class="n">6</span>Practica la respuesta</h3><p style="font-size:14.5px">Preparé un ejercicio de mesa de ${TURNS} turnos que arranca con esta noticia. Los indicadores iniciales reflejan el daño estimado y los eventos siguientes se concentran en ${esc(W.news.doms.slice(0,3).map(d => DOM[d].n.toLowerCase()).join(', '))}.</p><div style="margin-top:12px"><button class="btn" type="button" data-go="ejercicio">Iniciar ejercicio</button></div></div></div>` : ''}
-    <p class="hint">Cómo se conecta: la cascada (M1) califica las respuestas (M3) y prepara el ejercicio (M2); la confiabilidad de la noticia (M4) ajusta la legitimidad y el peso de la comunicación.</p>
+    <div class="card qcard" id="q-osint">${osintHTML()}</div>
+    <p class="hint">Cómo se conecta: la cascada (M1) califica las respuestas (M3) y prepara el ejercicio (M2); la confiabilidad de la noticia (M4) ajusta la legitimidad y el peso de la comunicación; las fuentes abiertas agregan condiciones reales y corroboración a todo el análisis.</p>
     <div class="q-more">Para ver más detalle:<button class="chipbtn" type="button" data-go="cascada">Mapa de la cascada</button><button class="chipbtn" type="button" data-go="coa">Matriz de respuestas</button><button class="chipbtn" type="button" data-go="cognitivo">Texto marcado</button></div>`;
   report($('#q-report'), 'Análisis rápido multidominio', `Nivel general: ${lvl[0].toLowerCase()}`, [
     {h:'Noticia analizada', p: txt.length > 1500 ? txt.slice(0,1500) + '…' : txt},
@@ -1074,13 +1206,14 @@ function qRun(){
     {h:'Efectos posibles en cascada', items: derived.length ? derived.slice(0,6).map(k => `${NM[k].n}: ${sevOf(r.imp[k])[0].toLowerCase()}, ${hr(r.t[k])}`) : ['Sin efectos derivados.']},
     {h:'Acciones prioritarias', items: actions},
     ...(coa ? [{h:'Cursos de acción comparados', items: coa.ord.map(i => `${'ABC'[i]}. ${coa.names[i]}: ${coa.tt[i].toFixed(1)}/100`).concat([coa.flips ? `Decisión sensible: cambia en ${coa.flips} prueba(s) de peso.` : 'Decisión robusta ante cambios de peso.'])}] : []),
-    {h:'Confiabilidad de la noticia', p:`Índice de señales de manipulación ${g.score}/100 (${glv.toLowerCase()}). ${gTips.map(x => x.g.n).join('; ') || 'Sin señales fuertes.'}`}
+    {h:'Confiabilidad de la noticia', p:`Índice de señales de manipulación ${g.score}/100 (${glv.toLowerCase()}). ${gTips.map(x => x.g.n).join('; ') || 'Sin señales fuertes.'}`},
+    ...(Q.osint ? [{h:'Fuentes abiertas consultadas', items: Q.osint.src.map(x => `${x.n}: ${x.msg}${x.ok && x.link ? ' (' + x.link + ')' : ''}`).concat(Q.osint.notes)}] : [])
   ]);
 }
 $('#q-go').onclick = () => { qEx = -1; qRun(); $('#q-out').scrollIntoView({behavior:'smooth', block:'start'}); };
 $('#q-text').oninput = () => { qEx = -1; };
 $('#q-ex').onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; qEx = +b.dataset.i; $('#q-text').value = QEX[qEx].t; qRun(); };
-$('#q-out').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b){ showTab(b.dataset.go); window.scrollTo({top:0}); } });
+$('#q-out').addEventListener('click', e => { if (e.target.closest('[data-osint]')){ qOsint(); return; } const b = e.target.closest('[data-go]'); if (b){ showTab(b.dataset.go); window.scrollTo({top:0}); } });
 
 /* ---------- Arranque ---------- */
 cScenChips(); cRender();

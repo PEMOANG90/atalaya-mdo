@@ -10,6 +10,21 @@ Pega una noticia en **Análisis rápido** y pulsa **Analizar noticia**. El sitio
 
 Los cuatro módulos se alimentan de la misma noticia: la cascada (M1) califica los cursos de acción (M3) y prepara un ejercicio de mesa (M2) que arranca con la noticia; la confiabilidad del texto (M4) ajusta la legitimidad y el peso de la comunicación.
 
+## Fuentes abiertas
+
+El botón **Consultar fuentes abiertas** busca, sin claves ni cuentas, información pública relacionada con la noticia:
+
+| Fuente | Qué aporta |
+| --- | --- |
+| GDELT | Cobertura en medios de los últimos 7 días (corroboración) |
+| Open-Meteo | Viento, lluvia y oleaje en el lugar detectado |
+| NOAA SWPC | Clima espacial (afectación a GPS y satélites) |
+| USGS | Sismos cercanos de magnitud 4.5 o mayor |
+| NASA EONET | Eventos naturales activos en la región |
+| Wikipedia | Contexto del lugar |
+
+Las condiciones relevantes (oleaje alto, ráfagas fuertes, tormenta geomagnética, sismo cercano) se agregan automáticamente al análisis de los cuatro módulos. Solo se envían el lugar y palabras clave, no el texto completo.
+
 ## Módulos avanzados
 
 | Módulo | Qué hace |
