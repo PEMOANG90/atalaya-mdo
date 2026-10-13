@@ -6,7 +6,7 @@ Suite académica de análisis para operaciones multidominio. Un solo archivo (`i
 
 ## Uso rápido
 
-Pega una noticia en **Análisis rápido** y pulsa **Analizar noticia**. El sitio muestra qué se afectó, qué puede venir después, qué hacer primero y qué tan confiable parece la noticia, con un reporte listo para copiar o imprimir.
+Pega una noticia, o solo su enlace, en **Análisis rápido** y pulsa **Analizar noticia**. Con un enlace, la herramienta lee el contenido: notas web (vía Jina Reader o AllOrigins), publicaciones de X (vía FxTwitter o vxTwitter, incluida la nota que enlacen) y videos de YouTube (título y canal). El enlace funciona igual en Cascada, Cursos de acción y Dominio cognitivo, y el resultado se analiza en todos los módulos. El sitio muestra qué se afectó, qué puede venir después, qué hacer primero y qué tan confiable parece la noticia, con un reporte listo para copiar o imprimir.
 
 ¿No tienes la noticia? Debajo del cuadro de texto puedes buscarla. La búsqueda internacional lee directo el RSS de cadenas como CNN en Español, BBC Mundo, DW, France 24, El País, Europa Press, Euronews, Infobae, CNN International, Al Jazeera, The Guardian y South China Morning Post; la nacional usa Google Noticias México. Ambas se filtran filtrada por dominio (terrestre, marítimo, aéreo, espacial, ciberespacio, cognitivo) y con palabra clave opcional. El botón **Analizar** de cada resultado la pasa directo al análisis.
 

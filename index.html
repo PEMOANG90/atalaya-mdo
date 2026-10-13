@@ -200,6 +200,8 @@ mark{background:color-mix(in srgb,var(--mc) 22%,transparent);color:inherit;borde
 .nlist small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
 .nlist .tag{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:11px;border:1px solid var(--line);border-radius:3px;padding:0 4px;margin-right:4px;color:var(--muted)}
 #n-outlets .chipbtn small{opacity:.75;font-size:11px;margin-left:4px}
+.linkmsg{font-size:13px;margin:6px 0 0;color:var(--muted)}
+.linkmsg.err{color:var(--crit)}
 .nlist .btn{flex:none;padding:5px 10px;font-size:13px}
 .tabsep{align-self:center;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 6px 0 14px;border-left:1px solid var(--line);white-space:nowrap}
 .q-level{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
@@ -313,7 +315,7 @@ footer .wrap{display:grid;gap:6px;max-width:1180px}
     <h2>Pega una noticia y obtén el análisis</h2>
     <p class="muted">No necesitas configurar nada. La herramienta identifica qué se afectó, qué más puede afectarse después, qué conviene hacer primero y qué tan confiable parece la noticia.</p>
     <label for="q-text" class="eyebrow">Texto de la noticia</label>
-    <textarea id="q-text" maxlength="12000" placeholder="Pega aquí la noticia o describe el incidente…"></textarea>
+    <textarea id="q-text" maxlength="12000" placeholder="Pega aquí la noticia, su enlace (nota web, X, YouTube) o describe el incidente…"></textarea>
     <div class="q-actions"><button class="btn big" id="q-go" type="button">Analizar noticia</button><span class="muted">o prueba un ejemplo:</span><div class="chips" id="q-ex"></div></div>
     <div class="nsearch">
       <span class="eyebrow">¿No tienes la noticia? Búscala por dominio</span>
@@ -338,7 +340,7 @@ footer .wrap{display:grid;gap:6px;max-width:1180px}
     <aside class="panel no-print">
       <div class="field">
         <label for="c-txt">Describe tu incidente</label>
-        <textarea id="c-txt" style="min-height:110px" maxlength="4000" placeholder="Ej.: Ciberataque deja sin sistema a la terminal de contenedores y provoca un apagón en el muelle. Circulan rumores en redes."></textarea>
+        <textarea id="c-txt" style="min-height:110px" maxlength="4000" placeholder="Pega un enlace o escribe. Ej.: Ciberataque deja sin sistema a la terminal de contenedores y provoca un apagón en el muelle. Circulan rumores en redes."></textarea>
         <button class="btn" id="c-txt-go" type="button">Analizar incidente</button>
         <p class="hint" id="c-txt-out">Escribe lo que pasó con tus palabras: la herramienta detecta las infraestructuras afectadas y su gravedad. Después puedes ajustar haciendo clic en los nodos.</p>
       </div>
@@ -775,6 +777,7 @@ function cParse(txt){
 }
 $('#c-txt-go').onclick = () => {
   const txt = $('#c-txt').value.trim(), out = $('#c-txt-out');
+  const lk = onlyLink(txt); if (lk){ out.textContent = ''; ingestLink($('#c-txt'), lk); return; }
   if (txt.length < 10){ out.textContent = 'Escribe al menos una oración que describa qué pasó y dónde.'; return; }
   const r = cParse(txt), ids = Object.keys(r.init);
   if (!ids.length){ out.textContent = 'No reconocí infraestructuras en el texto. Menciona qué falló (por ejemplo: puerto, apagón, GPS, ciberataque, aeropuerto) o marca los nodos en el mapa.'; return; }
@@ -1524,7 +1527,79 @@ $('#n-out').onclick = e => {
   $('#q-text').value = `${i.t}.${i.desc && i.desc !== i.t ? ' ' + i.desc : ''} Fuente: ${i.src}${i.country ? ' (' + i.country + ')' : ''}.`;
   qEx = -1; qRun(); $('#q-out').scrollIntoView({behavior:'smooth', block:'start'});
 };
-$('#q-go').onclick = () => { qEx = -1; qRun(); $('#q-out').scrollIntoView({behavior:'smooth', block:'start'}); };
+// Enlaces: si se pega un enlace, se lee su contenido y se analiza en todos los módulos
+const URL_RE = /https?:\/\/[^\s<>"']+/i;
+function onlyLink(txt){ const m = (txt || '').match(URL_RE); if (!m) return null; return txt.replace(m[0], '').trim().split(/\s+/).filter(Boolean).length < 8 ? m[0] : null; }
+function mdClean(md){
+  return md.replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/^[#>*\-\s]+/gm, '').split('\n').map(l => l.trim())
+    .filter(l => l.length >= 60 || /[.!?»"]$/.test(l) && l.length >= 25).join('\n').slice(0, 8000);
+}
+async function readerText(u){
+  const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 20000);
+  try {
+    const r = await fetch('https://r.jina.ai/' + u, {signal:ctl.signal}); if (!r.ok) throw 0;
+    const t = await r.text(), title = (t.match(/^Title:\s*(.*)$/m) || [])[1] || '';
+    const body = mdClean(t.includes('Markdown Content:') ? t.split('Markdown Content:').slice(1).join(' ') : t);
+    if (body.length > 80) return {title, text:body};
+  } catch(e){} finally { clearTimeout(tm); }
+  const ctl2 = new AbortController(), tm2 = setTimeout(() => ctl2.abort(), 15000);
+  try {
+    const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`, {signal:ctl2.signal});
+    const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+    const meta = n => (doc.querySelector(`meta[property="${n}"],meta[name="${n}"]`) || {}).content || '';
+    const ps = [...doc.querySelectorAll('article p, main p, p')].map(x => x.textContent.replace(/\s+/g, ' ').trim()).filter(x => x.length > 60);
+    const text = [meta('og:description') || meta('description'), ...[...new Set(ps)].slice(0, 25)].filter(Boolean).join('\n').slice(0, 8000);
+    const title = meta('og:title') || (doc.querySelector('title') || {}).textContent || '';
+    if (text.length > 40 || title) return {title:title.trim(), text};
+  } catch(e){} finally { clearTimeout(tm2); }
+  return null;
+}
+async function linkText(u){
+  let url; try { url = new URL(u); } catch(e){ return null; }
+  const host = url.hostname.replace(/^(www|mobile|m)\./, '');
+  // Publicaciones de X / Twitter (FxTwitter y vxTwitter permiten leerlas desde el navegador)
+  const tw = /^(x|twitter|fxtwitter|vxtwitter|fixupx)\.com$/.test(host) && url.pathname.match(/^\/([^/]+)\/status(?:es)?\/(\d+)/);
+  if (tw){
+    let post = null;
+    try { const d = await getJSON(`https://api.fxtwitter.com/${tw[1]}/status/${tw[2]}`, 12000); const t = d.tweet; if (t && t.text != null) post = {text:t.text + (t.quote && t.quote.text ? '\n«' + t.quote.text + '»' : ''), who:(t.author || {}).screen_name || tw[1], name:(t.author || {}).name || '', date:t.created_at, link:((t.text || '').match(URL_RE) || [])[0] || ''}; } catch(e){}
+    if (!post){ try { const d = await getJSON(`https://api.vxtwitter.com/${tw[1]}/status/${tw[2]}`, 12000); if (d.text != null) post = {text:d.text, who:d.user_screen_name || tw[1], name:d.user_name || '', date:d.date, link:((d.text || '').match(URL_RE) || [])[0] || ''}; } catch(e){} }
+    if (post){
+      // Si la publicación enlaza a una nota, se lee también la nota
+      let art = null; if (post.link && !/(x|twitter)\.com\//.test(post.link)) art = await readerText(post.link);
+      const text = post.text.replace(URL_RE, '').trim() + (art ? '\n\n' + (art.title ? art.title + '. ' : '') + art.text : '');
+      return {title:'', text, src:`@${post.who}${post.name ? ' (' + post.name + ')' : ''} en X`, date:post.date};
+    }
+    return null;
+  }
+  // Videos de YouTube: título y canal
+  if (/(^|\.)(youtube\.com|youtu\.be)$/.test(host)){
+    try { const d = await getJSON(`https://noembed.com/embed?url=${encodeURIComponent(u)}`, 10000); if (d.title) return {title:d.title, text:'', src:`${d.author_name || 'YouTube'} en YouTube`}; } catch(e){}
+  }
+  // Notas web
+  const r = await readerText(u);
+  return r ? {title:r.title, text:r.text, src:host} : null;
+}
+function linkMsg(ta){ let m = ta.parentNode.querySelector(`.linkmsg[data-for="${ta.id}"]`); if (!m){ m = document.createElement('p'); m.className = 'linkmsg'; m.dataset.for = ta.id; m.setAttribute('aria-live', 'polite'); ta.insertAdjacentElement('afterend', m); } return m; }
+// Lee el enlace de cualquier cuadro de texto y lleva el resultado a todos los módulos
+async function ingestLink(ta, u){
+  const m = linkMsg(ta); m.className = 'linkmsg';
+  if (inFrame){ m.className = 'linkmsg err'; m.textContent = 'La vista previa de Claude bloquea la lectura de enlaces; usa la versión publicada en GitHub Pages.'; return false; }
+  m.textContent = 'Leyendo el enlace…'; ta.disabled = true;
+  const r = await linkText(u).catch(() => null); ta.disabled = false;
+  if (!r || (r.text + r.title).trim().length < 15){ m.className = 'linkmsg err'; m.innerHTML = `No pude leer el contenido de <a href="${esc(u)}" target="_blank" rel="noopener">este enlace</a> (el sitio no lo permite o pide iniciar sesión). Ábrelo, copia el texto y pégalo aquí.`; return false; }
+  const txt = `${r.title ? r.title.trim() + '.\n' : ''}${r.text.trim()}\n\nFuente: ${r.src}${r.date ? ' · ' + r.date : ''} · ${u}`;
+  m.textContent = `Contenido leído de ${r.src}. Analizado en todos los módulos.`;
+  $('#q-text').value = txt; qEx = -1; qRun();
+  ta.value = txt;
+  if (ta.id === 'a-sit'){ A.sit = txt; aRender(); }
+  if (ta.id === 'c-txt') $('#c-txt-go').onclick();
+  return true;
+}
+['q-text', 'c-txt', 'g-text', 'a-sit'].forEach(id => {
+  const ta = document.getElementById(id); if (!ta) return;
+  ta.addEventListener('paste', e => { const t = (e.clipboardData || window.clipboardData).getData('text'); const u = onlyLink(t); if (u && !onlyLink(ta.value.trim()) && ta.value.trim().length < 15){ e.preventDefault(); ta.value = u; ingestLink(ta, u); } });
+});
+$('#q-go').onclick = async () => { qEx = -1; const u = onlyLink($('#q-text').value.trim()); if (u && !(await ingestLink($('#q-text'), u))) return; if (!u) qRun(); $('#q-out').scrollIntoView({behavior:'smooth', block:'start'}); };
 $('#q-text').oninput = () => { qEx = -1; };
 $('#q-ex').onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; qEx = +b.dataset.i; $('#q-text').value = QEX[qEx].t; qRun(); };
 $('#q-out').addEventListener('click', e => { if (e.target.closest('[data-osint]')){ qOsint(); return; } const b = e.target.closest('[data-go]'); if (b){ showTab(b.dataset.go); window.scrollTo({top:0}); } });
