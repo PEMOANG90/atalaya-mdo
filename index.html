@@ -1418,10 +1418,18 @@ function vStart(){
   if (typeof L === 'undefined' || inFrame){ $('#v-map').innerHTML = '<p style="padding:20px;color:#9FD8EA">El panorama en vivo funciona en la versión publicada en GitHub Pages: la vista previa de Claude bloquea mapas y conexiones externas.</p>'; return; }
   if (!V.map){
     V.map = L.map('v-map', {zoomControl:true, worldCopyJump:true});
-    const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {maxZoom:18, subdomains:'abcd', attribution:'© OpenStreetMap · © CARTO'});
-    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:18, attribution:'Imágenes © Esri'});
+    // Mapas base sin clave: Esri gris oscuro (con nombres) e imagen satelital, más OpenStreetMap
+    const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
+    const darkBase = L.tileLayer(ESRI + 'Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {maxNativeZoom:16, maxZoom:18, attribution:'Mapa © Esri, HERE, Garmin, OpenStreetMap'});
+    const darkRef = L.tileLayer(ESRI + 'Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {maxNativeZoom:16, maxZoom:18});
+    const dark = L.layerGroup([darkBase, darkRef]);
+    const sat = L.layerGroup([
+      L.tileLayer(ESRI + 'World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:18, attribution:'Imágenes © Esri, Maxar, Earthstar Geographics'}),
+      L.tileLayer(ESRI + 'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {maxZoom:18})
+    ]);
+    const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'© OpenStreetMap'});
     dark.addTo(V.map);
-    L.control.layers({'Mapa oscuro': dark, 'Satélite': sat}, null, {position:'topright'}).addTo(V.map);
+    L.control.layers({'Mapa oscuro': dark, 'Satélite': sat, 'Calles (OSM)': osm}, null, {position:'topright'}).addTo(V.map);
     Object.keys(VL).forEach(k => { V.g[k] = L.layerGroup(); if (VL[k].on) V.g[k].addTo(V.map); });
     PLACES.forEach(p => L.circleMarker([p[1], p[2]], {radius:4, color:VL.ports.c, weight:1, fillOpacity:.6}).bindTooltip(p[0]).addTo(V.g.ports));
     V.cnt.ports = PLACES.length;
@@ -1455,19 +1463,23 @@ async function vAir(){
   if (!V.map || !V.running) return;
   const c = V.map.getCenter(), b = V.map.getBounds();
   const rkm = Math.min(463, km(c.lat, c.lng, b.getNorth(), b.getEast()));
+  const nm = Math.max(25, Math.round(rkm/1.852)), la = c.lat.toFixed(3), lo = c.lng.toFixed(3);
+  const rx = d => (d.ac || d.aircraft || []).filter(a => a.lat != null).map(a => ({id:a.hex, cs:(a.flight||'').trim() || a.hex, lat:a.lat, lon:a.lon, alt:a.alt_baro, gs:a.gs, trk:a.track || 0, sq:a.squawk, ty:a.t}));
+  const SRC = [
+    ['adsb.lol', `https://api.adsb.lol/v2/point/${la}/${lo}/${nm}`, rx],
+    ['airplanes.live', `https://api.airplanes.live/v2/point/${la}/${lo}/${nm}`, rx],
+    ['adsb.fi', `https://opendata.adsb.fi/api/v2/lat/${la}/lon/${lo}/dist/${nm}`, rx],
+    ['OpenSky', (bb => `https://opensky-network.org/api/states/all?lamin=${bb.s.toFixed(2)}&lomin=${bb.w.toFixed(2)}&lamax=${bb.n.toFixed(2)}&lomax=${bb.e.toFixed(2)}`)(vBounds()),
+      d => (d.states || []).filter(x => x[6] != null).map(x => ({id:x[0], cs:(x[1]||'').trim() || x[0], lat:x[6], lon:x[5], alt:x[7] != null ? Math.round(x[7]*3.281) : (x[8] ? 'ground' : null), gs:x[9] != null ? Math.round(x[9]*1.944) : null, trk:x[10] || 0, sq:x[14]}))]
+  ];
   let list = null, src = '';
-  try {
-    const d = await getJSON(`https://api.adsb.lol/v2/point/${c.lat.toFixed(3)}/${c.lng.toFixed(3)}/${Math.round(rkm/1.852)}`, 12000);
-    list = (d.ac || []).filter(a => a.lat != null).map(a => ({id:a.hex, cs:(a.flight||'').trim() || a.hex, lat:a.lat, lon:a.lon, alt:a.alt_baro, gs:a.gs, trk:a.track || 0, sq:a.squawk, ty:a.t}));
-    src = 'adsb.lol';
-  } catch(e){
-    try {
-      const bb = vBounds();
-      const d = await getJSON(`https://opensky-network.org/api/states/all?lamin=${bb.s.toFixed(2)}&lomin=${bb.w.toFixed(2)}&lamax=${bb.n.toFixed(2)}&lomax=${bb.e.toFixed(2)}`, 12000);
-      list = (d.states || []).filter(x => x[6] != null).map(x => ({id:x[0], cs:(x[1]||'').trim() || x[0], lat:x[6], lon:x[5], alt:x[7] != null ? Math.round(x[7]*3.281) : (x[8] ? 'ground' : null), gs:x[9] != null ? Math.round(x[9]*1.944) : null, trk:x[10] || 0, sq:x[14]}));
-      src = 'OpenSky';
-    } catch(e2){ V.upd['Aeronaves'] = 'sin respuesta'; V.cnt.air = null; vStatus(); return; }
+  if (!V.cnt.air) { V.upd['Aeronaves'] = 'consultando…'; vStatus(); }
+  const start = V.airSrc || 0;
+  for (let i = 0; i < SRC.length && !list; i++){
+    const [n, url, parse] = SRC[(start + i) % SRC.length];
+    try { list = parse(await getJSON(url, 10000)); src = n; V.airSrc = (start + i) % SRC.length; } catch(e){}
   }
+  if (!list){ V.upd['Aeronaves'] = 'ninguna fuente respondió (adsb.lol, airplanes.live, adsb.fi, OpenSky)'; V.cnt.air = null; vStatus(); return; }
   V.g.air.clearLayers(); vClear('air-');
   list.slice(0, 600).forEach(a => {
     const emerg = ['7500','7600','7700'].includes(String(a.sq));
