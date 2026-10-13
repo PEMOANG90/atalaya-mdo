@@ -3,13 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Suite académica de análisis para operaciones multidominio: pega una noticia, consulta fuentes abiertas e imágenes satelitales y obtén el análisis de cascada, respuestas, ejercicio y confiabilidad.">
+<meta name="description" content="Suite académica de análisis para operaciones multidominio: análisis de noticias, fuentes abiertas, imágenes satelitales y panorama operacional en vivo.">
 <title>Atalaya MDO</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/satellite.js@5.0.0/dist/satellite.min.js"></script>
 <style>
 /* Consola de estado mayor: franja de clasificación, barra de módulos, controles a la izquierda y lectura a la derecha; seis colores fijos, uno por dominio */
 :root{
@@ -205,6 +206,38 @@ mark{background:color-mix(in srgb,var(--mc) 22%,transparent);color:inherit;borde
 .sat img{width:100%;aspect-ratio:4/3;object-fit:contain;border-radius:5px;border:1px solid var(--line);background:var(--surface2)}
 .sat figcaption{font-size:12.5px;color:var(--muted)}
 .leaflet-container{font-family:var(--f-body)}
+/* M5 · Panorama en vivo: consola oscura deliberada, igual en ambos temas */
+.hud{display:grid;grid-template-columns:270px minmax(0,1fr);gap:1px;background:#1E3446;border:1px solid #1E3446;border-radius:8px;overflow:hidden;color:#D7E6EE;font-size:13.5px}
+@media (max-width:900px){.hud{grid-template-columns:minmax(0,1fr)}}
+.hud-side,.hud-main,.hud-bottom>div{background:#0B1620}
+.hud-side{padding:14px;display:grid;gap:16px;align-content:start}
+.hud-lab{display:block;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#7FA3B8;margin-bottom:8px}
+.hud .chipbtn{background:#132535;border-color:#24425A;color:#D7E6EE;font-size:12.5px}
+.hud .chipbtn[aria-pressed="true"]{background:#5FD3F3;border-color:#5FD3F3;color:#06141C}
+.hud-layer{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer}
+.hud-layer input{accent-color:#5FD3F3}
+.hud-layer i{width:10px;height:10px;border-radius:50%;flex:none}
+.hud-layer .cnt{margin-left:auto;font-family:var(--f-mono);color:#9FD8EA;font-variant-numeric:tabular-nums}
+.hud input[type=password],.hud input[type=text]{background:#132535;border:1px solid #24425A;color:#D7E6EE;border-radius:5px;padding:7px 9px;width:100%}
+.hud .btn{background:#5FD3F3;border-color:#5FD3F3;color:#06141C}
+.hud .btn.ghost{background:transparent;color:#5FD3F3}
+.hud-hint{font-size:12px;color:#7FA3B8;margin-top:6px}
+.hud-status{font-family:var(--f-mono);font-size:11.5px;color:#9FD8EA;line-height:1.6}
+.hud-status .live{display:inline-block;width:8px;height:8px;border-radius:50%;background:#7CE38B;margin-right:6px;animation:pulse 1.6s infinite}
+@keyframes pulse{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.hud-status .live{animation:none}}
+.vmap{height:560px;background:#08121A}
+@media (max-width:520px){.vmap{height:380px}}
+.hud-bottom{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1px;background:#1E3446}
+@media (max-width:760px){.hud-bottom{grid-template-columns:minmax(0,1fr)}}
+.hud-bottom>div{padding:12px 14px;min-width:0}
+.hud-bottom ul{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:190px;overflow:auto}
+.hud-bottom li{border-left:3px solid #24425A;padding:3px 8px;overflow-wrap:anywhere}
+.hud-bottom li.alta{border-color:#F0675C} .hud-bottom li.media{border-color:#E3BF4E} .hud-bottom li.info{border-color:#5FD3F3}
+.hud-bottom a{color:#9FD8EA}
+.hud-bottom small{color:#7FA3B8;font-family:var(--f-mono)}
+.vlabel{background:transparent;border:0;box-shadow:none;color:#E3BF4E;font-family:var(--f-mono);font-size:10px;padding:0}
+.vlabel::before{display:none}
 footer{border-top:1px solid var(--line);padding-block:20px 36px;font-size:13px;color:var(--muted)}
 footer .wrap{display:grid;gap:6px;max-width:1180px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -250,6 +283,7 @@ footer .wrap{display:grid;gap:6px;max-width:1180px}
     <button class="tab" role="tab" data-tab="ejercicio" aria-selected="false"><span class="code">M2</span><span class="lbl">Ejercicio de mesa</span></button>
     <button class="tab" role="tab" data-tab="coa" aria-selected="false"><span class="code">M3</span><span class="lbl">Cursos de acción</span></button>
     <button class="tab" role="tab" data-tab="cognitivo" aria-selected="false"><span class="code">M4</span><span class="lbl">Dominio cognitivo</span></button>
+    <button class="tab" role="tab" data-tab="vivo" aria-selected="false"><span class="code">M5</span><span class="lbl">Panorama en vivo</span></button>
   </div>
 </nav>
 
@@ -386,6 +420,29 @@ footer .wrap{display:grid;gap:6px;max-width:1180px}
   </div>
   <div class="report" id="g-report"></div>
 </section>
+<!-- M5 -->
+<section class="mod" id="vivo" role="tabpanel" hidden>
+  <div class="mod-head">
+    <span class="eyebrow">Módulo 5 · Panorama operacional en vivo</span>
+    <h2>Panorama en vivo</h2>
+    <p>Mapa de conciencia situacional con datos abiertos en tiempo real: aeronaves, buques, satélites GPS, sismos, eventos naturales, radar de lluvia y noticias. Se centra en el lugar de la noticia analizada y sus alertas pueden agregarse al análisis.</p>
+  </div>
+  <div class="hud">
+    <aside class="hud-side">
+      <div><span class="hud-lab">Región</span><div class="chips" id="v-presets"></div></div>
+      <div><span class="hud-lab">Capas</span><div id="v-layers"></div></div>
+      <div><span class="hud-lab">Buques AIS (opcional)</span><input type="password" id="v-aiskey" placeholder="Clave de aisstream.io" autocomplete="off"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn" type="button" id="v-aison">Conectar</button><button class="btn ghost" type="button" id="v-aisoff">Quitar</button></div><p class="hud-hint">Clave gratuita en aisstream.io. Se guarda solo en este navegador.</p></div>
+      <div class="hud-status" id="v-status">En espera</div>
+    </aside>
+    <div class="hud-main">
+      <div class="vmap" id="v-map" role="region" aria-label="Mapa operacional en vivo"></div>
+      <div class="hud-bottom">
+        <div><span class="hud-lab">Alertas</span><ul id="v-alerts"></ul><button class="btn ghost" type="button" id="v-use" style="margin-top:10px">Agregar alertas al análisis</button><p class="hud-hint" id="v-use-out"></p></div>
+        <div><span class="hud-lab">Noticias en vivo</span><ul id="v-news"></ul></div>
+      </div>
+    </div>
+  </div>
+</section>
 </main>
 
 <footer>
@@ -444,11 +501,12 @@ function report(el, title, sub, sections){
 function selectBody(el){ const r = document.createRange(); r.selectNodeContents(el.querySelector('.rep-body')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
 
 /* ---------- Pestañas ---------- */
-const TABS = ['inicio','cascada','ejercicio','coa','cognitivo'];
+const TABS = ['inicio','cascada','ejercicio','coa','cognitivo','vivo'];
 function showTab(id){
   if (!TABS.includes(id)) id = 'inicio';
   document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === id));
   document.querySelectorAll('.mod').forEach(s => s.hidden = s.id !== id);
+  if (typeof vStart === 'function'){ if (id === 'vivo') vStart(); else vPause(); }
   try { localStorage.setItem('atalaya-tab', id); } catch(e){}
   if (location.hash.slice(1) !== id) { try { history.replaceState(null, '', '#' + id); } catch(e){} }
 }
@@ -1310,7 +1368,7 @@ function qRun(){
     ${geoHTML()}
     ${officialHTML(Q.osint && Q.osint.place ? Q.osint.place : findPlace(txt), ids)}
     <p class="hint">Cómo se conecta: la cascada (M1) califica las respuestas (M3) y prepara el ejercicio (M2); la confiabilidad de la noticia (M4) ajusta la legitimidad y el peso de la comunicación; las fuentes abiertas agregan condiciones reales y corroboración a todo el análisis.</p>
-    <div class="q-more">Para ver más detalle:<button class="chipbtn" type="button" data-go="cascada">Mapa de la cascada</button><button class="chipbtn" type="button" data-go="coa">Matriz de respuestas</button><button class="chipbtn" type="button" data-go="cognitivo">Texto marcado</button></div>`;
+    <div class="q-more">Para ver más detalle:<button class="chipbtn" type="button" data-go="cascada">Mapa de la cascada</button><button class="chipbtn" type="button" data-go="vivo">Panorama en vivo</button><button class="chipbtn" type="button" data-go="coa">Matriz de respuestas</button><button class="chipbtn" type="button" data-go="cognitivo">Texto marcado</button></div>`;
   report($('#q-report'), 'Análisis rápido multidominio', `Nivel general: ${lvl[0].toLowerCase()}`, [
     {h:'Noticia analizada', p: txt.length > 1500 ? txt.slice(0,1500) + '…' : txt},
     {h:'Resumen', p: summary},
@@ -1328,6 +1386,226 @@ $('#q-go').onclick = () => { qEx = -1; qRun(); $('#q-out').scrollIntoView({behav
 $('#q-text').oninput = () => { qEx = -1; };
 $('#q-ex').onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; qEx = +b.dataset.i; $('#q-text').value = QEX[qEx].t; qRun(); };
 $('#q-out').addEventListener('click', e => { if (e.target.closest('[data-osint]')){ qOsint(); return; } const b = e.target.closest('[data-go]'); if (b){ showTab(b.dataset.go); window.scrollTo({top:0}); } });
+
+/* =========================================================
+   M5 · PANORAMA EN VIVO
+   ========================================================= */
+const VL = {
+  air:{n:'Aeronaves (ADS-B)', c:'#5FD3F3', on:true},
+  ship:{n:'Buques (AIS)', c:'#7CE38B', on:true},
+  sat:{n:'Satélites GPS', c:'#E3BF4E', on:true},
+  quake:{n:'Sismos 24 h', c:'#F0675C', on:true},
+  eonet:{n:'Eventos naturales', c:'#F08D52', on:true},
+  ports:{n:'Puertos', c:'#AE94E6', on:true},
+  radar:{n:'Radar de lluvia', c:'#4C8DF6', on:false}
+};
+const PRESETS = [['México',23.6,-102.5,5],['Golfo de México',23.5,-91,6],['Pacífico mexicano',19,-106,6],['Caribe mexicano',20.5,-86.8,7]];
+const V = {map:null, g:{}, timers:[], ws:null, ships:new Map(), cnt:{}, alerts:{}, sats:[], gpsVis:null, upd:{}, radar:null, running:false};
+const vPlace = () => (Q.osint && Q.osint.place && Q.osint.place.lat != null) ? Q.osint.place : (Q.text ? (p => p && p.lat != null ? p : null)(findPlace(Q.text)) : null);
+const hhmm = d => d.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+function vStatus(){
+  const u = V.upd, c = V.cnt;
+  $('#v-status').innerHTML = `<span class="live"></span>EN VIVO · ${hhmm(new Date())}<br>Aeronaves ${c.air ?? '—'} · Buques ${c.ship ?? '—'}<br>GPS visibles ${V.gpsVis ?? '—'} · Sismos ${c.quake ?? '—'}${Object.keys(u).length ? '<br>' + Object.entries(u).map(([k,v]) => `${k}: ${v}`).join('<br>') : ''}`;
+  Object.keys(VL).forEach(k => { const el = document.getElementById('v-c-' + k); if (el) el.textContent = c[k] ?? ''; });
+}
+function vAlert(key, lvl, t, node, why){ V.alerts[key] = {lvl, t, node, why, at:new Date()}; vAlerts(); }
+function vClear(prefix){ Object.keys(V.alerts).forEach(k => { if (k.startsWith(prefix)) delete V.alerts[k]; }); vAlerts(); }
+function vAlerts(){
+  const a = Object.values(V.alerts).sort((x,y) => (x.lvl==='alta'?0:x.lvl==='media'?1:2) - (y.lvl==='alta'?0:y.lvl==='media'?1:2));
+  $('#v-alerts').innerHTML = a.length ? a.map(x => `<li class="${x.lvl}">${esc(x.t)} <small>${hhmm(x.at)}</small></li>`).join('') : '<li class="info">Sin alertas en la zona visible.</li>';
+}
+function vStart(){
+  if (typeof L === 'undefined' || inFrame){ $('#v-map').innerHTML = '<p style="padding:20px;color:#9FD8EA">El panorama en vivo funciona en la versión publicada en GitHub Pages: la vista previa de Claude bloquea mapas y conexiones externas.</p>'; return; }
+  if (!V.map){
+    V.map = L.map('v-map', {zoomControl:true, worldCopyJump:true});
+    const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {maxZoom:18, subdomains:'abcd', attribution:'© OpenStreetMap · © CARTO'});
+    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:18, attribution:'Imágenes © Esri'});
+    dark.addTo(V.map);
+    L.control.layers({'Mapa oscuro': dark, 'Satélite': sat}, null, {position:'topright'}).addTo(V.map);
+    Object.keys(VL).forEach(k => { V.g[k] = L.layerGroup(); if (VL[k].on) V.g[k].addTo(V.map); });
+    PLACES.forEach(p => L.circleMarker([p[1], p[2]], {radius:4, color:VL.ports.c, weight:1, fillOpacity:.6}).bindTooltip(p[0]).addTo(V.g.ports));
+    V.cnt.ports = PLACES.length;
+    let mt; V.map.on('moveend', () => { clearTimeout(mt); mt = setTimeout(() => { vAir(); vAisSub(); vCountView(); }, 600); });
+    const pl = vPlace(); pl ? V.map.setView([pl.lat, pl.lon], 8) : V.map.setView([23.6,-102.5], 5);
+  } else setTimeout(() => V.map.invalidateSize(), 50);
+  vPresets();
+  if (V.running) return;
+  V.running = true;
+  vAir(); vQuakes(); vEonet(); vNews(); vSats(); if (VL.radar.on) vRadar(); vAisConnect();
+  V.timers = [setInterval(vAir, 30000), setInterval(vQuakes, 300000), setInterval(vEonet, 600000), setInterval(vNews, 300000), setInterval(vSatTick, 10000), setInterval(vStatus, 5000), setInterval(() => { if (VL.radar.on) vRadar(); }, 600000)];
+  vStatus(); vAlerts();
+}
+function vPause(){ if (!V.running) return; V.timers.forEach(clearInterval); V.timers = []; V.running = false; if (V.ws){ try { V.ws.close(); } catch(e){} V.ws = null; } }
+function vPresets(){
+  const pl = vPlace();
+  $('#v-presets').innerHTML = (pl ? `<button class="chipbtn" type="button" data-p="news">${esc(pl.name.split(',')[0])} (noticia)</button>` : '') + PRESETS.map((p,i) => `<button class="chipbtn" type="button" data-p="${i}">${esc(p[0])}</button>`).join('');
+}
+$('#v-presets').onclick = e => { const b = e.target.closest('[data-p]'); if (!b || !V.map) return; if (b.dataset.p === 'news'){ const pl = vPlace(); if (pl) V.map.setView([pl.lat, pl.lon], 8); } else { const p = PRESETS[+b.dataset.p]; V.map.setView([p[1], p[2]], p[3]); } };
+$('#v-layers').innerHTML = Object.entries(VL).map(([k,l]) => `<label class="hud-layer"><input type="checkbox" id="v-l-${k}" data-l="${k}" ${l.on?'checked':''}><i style="background:${l.c}"></i>${esc(l.n)}<span class="cnt" id="v-c-${k}"></span></label>`).join('');
+$('#v-layers').onchange = e => { const k = e.target.dataset.l; if (!k) return; VL[k].on = e.target.checked; if (!V.map) return; if (k === 'radar'){ if (VL.radar.on) vRadar(); else if (V.radar){ V.map.removeLayer(V.radar); V.radar = null; } return; } VL[k].on ? V.g[k].addTo(V.map) : V.map.removeLayer(V.g[k]); };
+function vBounds(){ const b = V.map.getBounds(); return {s:b.getSouth(), w:b.getWest(), n:b.getNorth(), e:b.getEast()}; }
+function vCountView(){
+  if (!V.map) return; const b = V.map.getBounds();
+  const inV = g => { let n = 0; g.eachLayer(l => { if (l.getLatLng && b.contains(l.getLatLng())) n++; }); return n; };
+  V.cnt.quake = inV(V.g.quake); V.cnt.eonet = inV(V.g.eonet); V.cnt.ports = inV(V.g.ports);
+  vStatus();
+}
+// Aeronaves: adsb.lol, con OpenSky como respaldo
+async function vAir(){
+  if (!V.map || !V.running) return;
+  const c = V.map.getCenter(), b = V.map.getBounds();
+  const rkm = Math.min(463, km(c.lat, c.lng, b.getNorth(), b.getEast()));
+  let list = null, src = '';
+  try {
+    const d = await getJSON(`https://api.adsb.lol/v2/point/${c.lat.toFixed(3)}/${c.lng.toFixed(3)}/${Math.round(rkm/1.852)}`, 12000);
+    list = (d.ac || []).filter(a => a.lat != null).map(a => ({id:a.hex, cs:(a.flight||'').trim() || a.hex, lat:a.lat, lon:a.lon, alt:a.alt_baro, gs:a.gs, trk:a.track || 0, sq:a.squawk, ty:a.t}));
+    src = 'adsb.lol';
+  } catch(e){
+    try {
+      const bb = vBounds();
+      const d = await getJSON(`https://opensky-network.org/api/states/all?lamin=${bb.s.toFixed(2)}&lomin=${bb.w.toFixed(2)}&lamax=${bb.n.toFixed(2)}&lomax=${bb.e.toFixed(2)}`, 12000);
+      list = (d.states || []).filter(x => x[6] != null).map(x => ({id:x[0], cs:(x[1]||'').trim() || x[0], lat:x[6], lon:x[5], alt:x[7] != null ? Math.round(x[7]*3.281) : (x[8] ? 'ground' : null), gs:x[9] != null ? Math.round(x[9]*1.944) : null, trk:x[10] || 0, sq:x[14]}));
+      src = 'OpenSky';
+    } catch(e2){ V.upd['Aeronaves'] = 'sin respuesta'; V.cnt.air = null; vStatus(); return; }
+  }
+  V.g.air.clearLayers(); vClear('air-');
+  list.slice(0, 600).forEach(a => {
+    const emerg = ['7500','7600','7700'].includes(String(a.sq));
+    const col = emerg ? '#F0675C' : a.alt === 'ground' ? '#7FA3B8' : VL.air.c;
+    L.marker([a.lat, a.lon], {icon: L.divIcon({className:'', iconSize:[16,16], html:`<svg width="16" height="16" viewBox="0 0 16 16" style="transform:rotate(${a.trk}deg)"><path d="M8 1 L12.5 14 L8 11 L3.5 14 Z" fill="${col}" stroke="#06141C" stroke-width=".8"/></svg>`})})
+      .bindPopup(`<b>${esc(a.cs)}</b>${a.ty ? ' · ' + esc(a.ty) : ''}<br>Altitud: ${a.alt === 'ground' ? 'en tierra' : a.alt != null ? a.alt + ' ft' : '—'}<br>Velocidad: ${a.gs != null ? Math.round(a.gs) + ' kt' : '—'}<br>Squawk: ${a.sq || '—'}`).addTo(V.g.air);
+    if (emerg) vAlert('air-' + a.id, 'alta', `Aeronave ${a.cs} transmite código ${a.sq} (${a.sq==='7700'?'emergencia':a.sq==='7600'?'falla de radio':'interferencia ilícita'}).`, a.sq === '7600' ? 'atc' : 'aero', 'código de emergencia aérea');
+  });
+  V.cnt.air = list.length; V.upd['Aeronaves'] = `${src} ${hhmm(new Date())}`; vStatus();
+}
+// Buques: AISStream (WebSocket con clave del usuario)
+let aisKey = ''; try { aisKey = localStorage.getItem('atalaya-ais') || ''; } catch(e){}
+$('#v-aiskey').value = aisKey ? '••••••••' : '';
+$('#v-aison').onclick = () => { const v = $('#v-aiskey').value.trim(); if (v && !v.startsWith('•')){ aisKey = v; try { localStorage.setItem('atalaya-ais', v); } catch(e){} } if (!aisKey){ V.upd['Buques'] = 'falta la clave'; vStatus(); return; } $('#v-aiskey').value = '••••••••'; vAisConnect(); };
+$('#v-aisoff').onclick = () => { aisKey = ''; try { localStorage.removeItem('atalaya-ais'); } catch(e){} $('#v-aiskey').value = ''; if (V.ws){ V.ws.close(); V.ws = null; } V.ships.clear(); V.g.ship.clearLayers(); V.cnt.ship = null; V.upd['Buques'] = 'sin clave'; vStatus(); };
+function vAisConnect(){
+  if (!aisKey){ V.upd['Buques'] = 'agrega tu clave AIS'; return; }
+  if (!V.running || !V.map) return;
+  if (V.ws){ try { V.ws.close(); } catch(e){} }
+  let ws;
+  try { ws = new WebSocket('wss://stream.aisstream.io/v0/stream'); } catch(e){ V.upd['Buques'] = 'conexión no disponible'; vStatus(); return; }
+  V.ws = ws; V.upd['Buques'] = 'conectando…';
+  ws.onopen = () => { vAisSub(); V.upd['Buques'] = 'AISStream conectado'; vStatus(); };
+  ws.onerror = () => { V.upd['Buques'] = 'AISStream rechazó la conexión (revisa la clave)'; vStatus(); };
+  ws.onclose = () => { if (V.ws === ws) V.ws = null; };
+  ws.onmessage = async ev => {
+    let m; try { m = JSON.parse(typeof ev.data === 'string' ? ev.data : await ev.data.text()); } catch(e){ return; }
+    if (m.error){ V.upd['Buques'] = 'AISStream: ' + m.error; vStatus(); return; }
+    const md = m.MetaData || {}, pr = (m.Message || {}).PositionReport || {};
+    if (md.latitude == null) return;
+    const id = md.MMSI, sog = pr.Sog ?? 0, name = (md.ShipName || '').trim() || ('MMSI ' + id);
+    let s = V.ships.get(id);
+    const col = sog < 0.5 ? '#7FA3B8' : VL.ship.c;
+    if (!s){ s = L.circleMarker([md.latitude, md.longitude], {radius:4.5, color:'#06141C', weight:1, fillColor:col, fillOpacity:1}).addTo(V.g.ship); V.ships.set(id, s); }
+    s.setLatLng([md.latitude, md.longitude]); s.setStyle({fillColor:col}); s.sog = sog;
+    s.bindPopup(`<b>${esc(name)}</b><br>MMSI ${id}<br>Velocidad: ${sog.toFixed(1)} nudos${sog < 0.5 ? ' (fondeado o detenido)' : ''}`);
+    V.cnt.ship = V.ships.size;
+    const stopped = [...V.ships.values()].filter(x => x.sog < 0.5).length;
+    if (stopped >= 15) vAlert('ship-wait', 'media', `${stopped} buques detenidos o fondeados en la zona: posible congestión o cierre de puerto.`, 'puerto', 'buques detenidos (AIS)'); else vClear('ship-wait');
+  };
+}
+function vAisSub(){
+  if (!V.ws || V.ws.readyState !== 1 || !V.map) return;
+  const b = vBounds();
+  V.ws.send(JSON.stringify({APIKey: aisKey, BoundingBoxes: [[[b.s, b.w], [b.n, b.e]]], FilterMessageTypes: ['PositionReport']}));
+}
+// Sismos 24 h
+async function vQuakes(){
+  try {
+    const d = await getJSON('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson');
+    V.g.quake.clearLayers(); vClear('eq-');
+    const b = V.map.getBounds();
+    (d.features || []).forEach(f => {
+      const [lon, lat] = f.geometry.coordinates, m = f.properties.mag || 0;
+      L.circleMarker([lat, lon], {radius: 3 + m*1.6, color:VL.quake.c, weight:1.5, fillColor:VL.quake.c, fillOpacity:.3}).bindPopup(`<b>M${m.toFixed(1)}</b> · ${esc(f.properties.place)}<br>${new Date(f.properties.time).toLocaleString('es-MX')}`).addTo(V.g.quake);
+      if (m >= 5 && b.contains([lat, lon])) vAlert('eq-' + f.id, m >= 6 ? 'alta' : 'media', `Sismo M${m.toFixed(1)}: ${f.properties.place}.`, 'elec', 'sismo en la zona (USGS)');
+    });
+    V.upd['Sismos'] = 'USGS ' + hhmm(new Date()); vCountView();
+  } catch(e){ V.upd['Sismos'] = 'sin respuesta'; vStatus(); }
+}
+// Eventos naturales activos
+async function vEonet(){
+  try {
+    const d = await getJSON('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=20');
+    V.g.eonet.clearLayers(); vClear('ev-');
+    const b = V.map.getBounds();
+    (d.events || []).forEach(e => {
+      const pts = (e.geometry || []).filter(x => x.type === 'Point'); if (!pts.length) return;
+      const [lon, lat] = pts[pts.length-1].coordinates, cat = (e.categories||[])[0] || {};
+      if (pts.length > 1) L.polyline(pts.map(x => [x.coordinates[1], x.coordinates[0]]), {color:VL.eonet.c, weight:1.5, opacity:.6, dashArray:'3 4'}).addTo(V.g.eonet);
+      L.circleMarker([lat, lon], {radius:6, color:VL.eonet.c, weight:2, fillColor:VL.eonet.c, fillOpacity:.5}).bindPopup(`<b>${esc(e.title)}</b><br>${esc(cat.title || '')}`).addTo(V.g.eonet);
+      if (cat.id === 'severeStorms' && b.contains([lat, lon])) vAlert('ev-' + e.id, 'alta', `${e.title} activo en la zona visible.`, 'elec', 'tormenta activa (NASA EONET)');
+      if (cat.id === 'wildfires' && b.contains([lat, lon])) vAlert('ev-' + e.id, 'media', `Incendio activo: ${e.title}.`, 'carr', 'incendio activo (NASA EONET)');
+    });
+    V.upd['Eventos'] = 'NASA ' + hhmm(new Date()); vCountView();
+  } catch(e){ V.upd['Eventos'] = 'sin respuesta'; vStatus(); }
+}
+// Satélites GPS: órbitas públicas de CelesTrak propagadas en el navegador
+async function vSats(){
+  if (typeof satellite === 'undefined'){ V.upd['Satélites'] = 'librería no disponible'; return; }
+  try {
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 15000);
+    const r = await fetch('https://celestrak.org/NORAD/elements/gp.php?GROUP=gps-ops&FORMAT=tle', {signal:ctl.signal}); clearTimeout(t);
+    const lines = (await r.text()).split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    V.sats = [];
+    for (let i = 0; i + 2 < lines.length + 0 && i + 2 <= lines.length - 1; i += 3){ if (lines[i+1].startsWith('1 ') && lines[i+2].startsWith('2 ')) V.sats.push({n:lines[i], rec:satellite.twoline2satrec(lines[i+1], lines[i+2])}); }
+    V.upd['Satélites'] = `CelesTrak (${V.sats.length} GPS)`; vSatTick();
+  } catch(e){ V.upd['Satélites'] = 'sin respuesta'; vStatus(); }
+}
+function vSatTick(){
+  if (!V.sats.length || !V.map) return;
+  const now = new Date(), gmst = satellite.gstime(now), c = V.map.getCenter();
+  const obs = {latitude: satellite.degreesToRadians(c.lat), longitude: satellite.degreesToRadians(c.lng), height: 0};
+  V.g.sat.clearLayers(); let vis = 0;
+  V.sats.forEach(s => {
+    const pv = satellite.propagate(s.rec, now); if (!pv || !pv.position) return;
+    const gd = satellite.eciToGeodetic(pv.position, gmst);
+    const lat = satellite.degreesLat(gd.latitude), lon = satellite.degreesLong(gd.longitude);
+    const el = satellite.ecfToLookAngles(obs, satellite.eciToEcf(pv.position, gmst)).elevation * 180 / Math.PI;
+    if (el > 10) vis++;
+    L.circleMarker([lat, lon], {radius:4, color:'#06141C', weight:1, fillColor: el > 10 ? VL.sat.c : '#7A6A2E', fillOpacity:1}).bindTooltip(`${s.n.replace(/^0 /,'')} · elevación ${el.toFixed(0)}°`, {direction:'top'}).addTo(V.g.sat);
+  });
+  V.gpsVis = vis; V.cnt.sat = V.sats.length;
+  if (vis < 6) vAlert('gps-low', 'media', `Solo ${vis} satélites GPS visibles sobre el centro del mapa: precisión de posicionamiento reducida.`, 'gnss', 'pocos satélites GPS visibles'); else vClear('gps-low');
+  vStatus();
+}
+// Radar de lluvia
+async function vRadar(){
+  try {
+    const d = await getJSON('https://api.rainviewer.com/public/weather-maps.json');
+    const fr = d.radar && d.radar.past && d.radar.past[d.radar.past.length-1]; if (!fr) throw 0;
+    if (V.radar) V.map.removeLayer(V.radar);
+    V.radar = L.tileLayer(`${d.host}${fr.path}/256/{z}/{x}/{y}/2/1_1.png`, {opacity:.65, maxNativeZoom:7, maxZoom:18, attribution:'Radar © RainViewer'}).addTo(V.map);
+    V.upd['Radar'] = 'RainViewer ' + new Date(fr.time*1000).toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
+  } catch(e){ V.upd['Radar'] = 'sin respuesta'; }
+  vStatus();
+}
+// Noticias en vivo (Google Noticias, últimas 24 h)
+async function vNews(){
+  const pl = vPlace(), q = `${pl ? '"' + pl.name.split(',')[0] + '" ' : ''}(SEMAR OR "Protección Civil" OR alerta OR huracán OR sismo OR puerto) when:1d`;
+  const rss = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=es-419&gl=MX&ceid=MX:es-419`;
+  try {
+    const j = await getJSON(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rss)}`, 12000);
+    if (j.status !== 'ok') throw 0;
+    $('#v-news').innerHTML = (j.items || []).slice(0,8).map(i => { const src = i.title.includes(' - ') ? i.title.split(' - ').pop() : ''; const t = src ? i.title.slice(0, -(src.length+3)) : i.title; return `<li class="info"><a href="${esc(i.link)}" target="_blank" rel="noopener">${esc(t)}</a> <small>${esc(src)} · ${i.pubDate ? new Date(i.pubDate.replace(' ','T') + 'Z').toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'}) : ''}</small></li>`; }).join('') || '<li class="info">Sin noticias en las últimas 24 horas.</li>';
+    V.upd['Noticias'] = 'Google Noticias ' + hhmm(new Date());
+  } catch(e){ $('#v-news').innerHTML = `<li class="info">No se pudieron cargar. <a href="https://news.google.com/search?q=${encodeURIComponent(q)}&hl=es-419&gl=MX&ceid=MX:es-419" target="_blank" rel="noopener">Abrir en Google Noticias</a></li>`; V.upd['Noticias'] = 'sin respuesta'; }
+  vStatus();
+}
+// Alertas → análisis de la noticia
+$('#v-use').onclick = () => {
+  const a = Object.values(V.alerts).filter(x => x.node);
+  if (!Q.text){ $('#v-use-out').textContent = 'Primero analiza una noticia en Análisis rápido.'; return; }
+  if (!a.length){ $('#v-use-out').textContent = 'No hay alertas que agregar.'; return; }
+  a.forEach(x => { const v = x.lvl === 'alta' ? .65 : .5; if ((Q.extra[x.node]||0) < v){ Q.extra[x.node] = v; Q.why[x.node] = x.why; } });
+  $('#v-use-out').textContent = `${a.length} alerta${a.length>1?'s':''} agregada${a.length>1?'s':''} al análisis.`;
+  qRun(); showTab('inicio'); window.scrollTo({top:0});
+};
 
 /* ---------- Arranque ---------- */
 cScenChips(); cRender();

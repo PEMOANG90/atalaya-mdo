@@ -30,6 +30,22 @@ Las condiciones relevantes (oleaje alto, ráfagas fuertes, tormenta geomagnétic
 - **Entorno geográfico satelital:** mapa interactivo del lugar con imagen de alta resolución (Esri) o la imagen del día anterior de NASA (MODIS), con los sismos y eventos naturales cercanos marcados. Incluye la imagen GOES más reciente de México y las perspectivas de ciclones tropicales del Atlántico y del Pacífico (NOAA/NHC).
 - **Fuentes oficiales:** SEMAR (meteorología marítima y comunicados), CONAGUA (Servicio Meteorológico Nacional) y Protección Civil (CNPC, Atlas Nacional de Riesgos y SASMEX). Como no publican datos que una página web pueda leer, el sitio enlaza a su portal y a una búsqueda de sus avisos recientes sobre el lugar, y marca como prioritarias las que corresponden a la noticia.
 
+## M5 · Panorama en vivo
+
+Mapa de conciencia situacional en tiempo real, inspirado en tableros OSINT como Osiris, centrado en el lugar de la noticia:
+
+| Capa | Fuente | Actualización |
+| --- | --- | --- |
+| Aeronaves (ADS-B) | adsb.lol, respaldo OpenSky | 30 s |
+| Buques (AIS) | AISStream (clave gratuita del usuario) | continuo |
+| Satélites GPS | CelesTrak + satellite.js | 10 s |
+| Sismos 24 h | USGS | 5 min |
+| Eventos naturales | NASA EONET | 10 min |
+| Radar de lluvia | RainViewer | 10 min |
+| Noticias | Google Noticias | 5 min |
+
+Genera alertas (códigos de emergencia aérea 7500/7600/7700, sismos M5+, tormentas o incendios en la zona, buques detenidos, pocos satélites GPS visibles) que se pueden agregar al análisis de la noticia con un clic.
+
 ## Módulos avanzados
 
 | Módulo | Qué hace |
