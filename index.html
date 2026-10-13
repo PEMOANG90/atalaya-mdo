@@ -1031,14 +1031,32 @@ async function qOsint(){
   // 2. Cobertura en medios (corroboración)
   jobs.push((async () => {
     if (!terms.length) return {n:'GDELT · medios', ok:false, msg:'Sin términos para buscar.'};
-    const q = (place ? `"${place.name.split(',')[0]}" ` : '') + (terms.length > 1 ? `(${terms.join(' OR ')})` : terms[0]) + ' sourcelang:spanish';
-    const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(q)}&mode=artlist&format=json&maxrecords=15&timespan=7d&sort=datedesc`;
-    const d = await getJSON(url, 15000);
+    const pl = place ? place.name.split(',')[0] : '';
+    const gnews = `https://news.google.com/search?q=${encodeURIComponent((pl ? pl + ' ' : '') + terms.slice(0,2).join(' '))}&hl=es-419&gl=MX&ceid=MX:es-419`;
+    // GDELT responde texto plano cuando rechaza una búsqueda y limita a una consulta cada 5 s
+    const tryQ = async q => {
+      const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 15000);
+      let res;
+      try { res = await fetch(`https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(q)}&mode=artlist&format=json&maxrecords=15&timespan=7d&sort=datedesc`, {signal:ctl.signal}); }
+      catch(e){ throw new Error(e.name === 'AbortError' ? 'el servicio tardó demasiado' : 'el servicio no permite la consulta desde el navegador en este momento'); }
+      finally { clearTimeout(t); }
+      const body = await res.text();
+      if (!body.trim()) return {articles:[]};
+      try { return JSON.parse(body); } catch(e){ throw new Error(body.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,140) || ('HTTP ' + res.status)); }
+    };
+    const qs = [ (pl ? `"${pl}" ` : '') + (terms.length > 1 ? `(${terms.join(' OR ')})` : terms[0]) + ' sourcelang:spanish', (pl ? `"${pl}" ` : '') + terms[0] ];
+    let d = null, q = qs[0], lastErr = '';
+    for (let i = 0; i < qs.length && !d; i++){
+      q = qs[i];
+      if (i) await new Promise(r => setTimeout(r, 5500));
+      try { d = await tryQ(q); } catch(e){ lastErr = e.message; }
+    }
+    if (!d) return {n:'GDELT · medios', ok:false, link:gnews, linkLabel:'buscar en Google Noticias', msg:`No se pudo consultar GDELT (${lastErr}). Puedes verificar la cobertura manualmente en Google Noticias.`};
     const arts = (d.articles || []);
     const doms = [...new Set(arts.map(a => a.domain))];
     Q.corrob = {n:arts.length, doms:doms.length};
     return {n:'GDELT · medios', ok:true, link:`https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(q)}&mode=artlist&timespan=7d`,
-      msg: arts.length ? `${arts.length} nota${arts.length>1?'s':''} en ${doms.length} medio${doms.length>1?'s':''} durante los últimos 7 días (búsqueda: ${q}).` : `Ningún medio indexado reporta el tema en los últimos 7 días (búsqueda: ${q}).`,
+      link2:gnews, msg: arts.length ? `${arts.length} nota${arts.length>1?'s':''} en ${doms.length} medio${doms.length>1?'s':''} durante los últimos 7 días (búsqueda: ${q}).` : `Ningún medio indexado reporta el tema en los últimos 7 días (búsqueda: ${q}).`,
       list: arts.slice(0,5).map(a => ({t:a.title, u:a.url, s:`${a.domain}`}))};
   })());
   // 3. Clima y oleaje en el lugar
@@ -1078,11 +1096,12 @@ async function qOsint(){
   if (place && place.lat != null) jobs.push((async () => {
     const b = [place.lon-6, place.lat+6, place.lon+6, place.lat-6].map(v => v.toFixed(2)).join(',');
     const d = await getJSON(`https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=20&bbox=${b}`);
-    const evts = d.events || [];
-    if (evts.some(e => (e.categories||[]).some(c => c.id === 'severeStorms')) && !p.init.elec){ add('elec', .5, 'tormenta activa cercana'); add('puerto', .5, 'tormenta activa cercana'); }
+    const last = e => { const g = (e.geometry || []).filter(x => x.type === 'Point'); return g.length ? g[g.length-1].coordinates : null; };
+    const evts = (d.events || []).map(e => { const c = last(e); return {...e, k: c ? km(place.lat, place.lon, c[1], c[0]) : Infinity}; }).filter(e => e.k <= 1000).sort((a,b) => a.k - b.k);
+    if (evts.some(e => e.k <= 500 && (e.categories||[]).some(c => c.id === 'severeStorms')) && !p.init.elec){ add('elec', .5, 'tormenta activa cercana'); add('puerto', .5, 'tormenta activa cercana'); }
     return {n:'NASA EONET · eventos naturales', ok:true, link:'https://eonet.gsfc.nasa.gov/',
-      msg: evts.length ? `${evts.length} evento${evts.length>1?'s':''} natural${evts.length>1?'es':''} activo${evts.length>1?'s':''} en la región.` : 'Sin eventos naturales activos registrados en la región.',
-      list: evts.slice(0,4).map(e => ({t:e.title, u:(e.sources&&e.sources[0]&&e.sources[0].url)||'https://eonet.gsfc.nasa.gov/', s:(e.categories||[]).map(c => c.title).join(', ')}))};
+      msg: evts.length ? `${evts.length} evento${evts.length>1?'s':''} natural${evts.length>1?'es':''} activo${evts.length>1?'s':''} a menos de 1 000 km.` : 'Sin eventos naturales activos a menos de 1 000 km.',
+      list: evts.slice(0,4).map(e => ({t:e.title, u:(e.sources&&e.sources[0]&&e.sources[0].url)||'https://eonet.gsfc.nasa.gov/', s:`${(e.categories||[]).map(c => c.title).join(', ')} · ${Math.round(e.k)} km`}))};
   })());
   // 7. Contexto del lugar
   if (place) jobs.push((async () => {
@@ -1113,7 +1132,7 @@ function osintHTML(){
     ${o.allFail ? `<div class="notice" style="margin-top:10px">No se pudo consultar ninguna fuente.${inFrame ? ' La vista previa de Claude bloquea las conexiones externas: las consultas funcionan en la versión publicada en GitHub Pages.' : ' Revisa tu conexión a internet e inténtalo de nuevo.'}</div>` : ''}
     ${adj.length ? `<div class="notice" style="margin-top:10px">Se agregaron al análisis ${adj.length} ${adj.length>1?'condiciones':'condición'} encontrada${adj.length>1?'s':''} en fuentes abiertas: ${adj.map(id => `${esc(NM[id].s)} (${esc(Q.why[id])})`).join(', ')}.</div>` : ''}
     ${o.notes.map(n => `<p style="margin-top:10px;font-size:14.5px"><b>${esc(n)}</b></p>`).join('')}
-    <div class="scroll-x" style="margin-top:10px"><table class="t"><thead><tr><th>Fuente</th><th>Hallazgo</th></tr></thead><tbody>${o.src.map(x => `<tr><td style="min-width:150px"><b>${esc(x.n)}</b><br>${x.ok ? `<a href="${esc(x.link)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:12px">ver fuente</a>` : '<span class="sev" style="--sc:var(--muted)">sin respuesta</span>'}</td><td>${esc(x.msg)}${x.list && x.list.length ? `<ul style="margin:6px 0 0;padding-left:18px;font-size:13px">${x.list.map(l => `<li><a href="${esc(l.u)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(l.t)}</a> <span class="muted">${esc(l.s)}</span></li>`).join('')}</ul>` : ''}</td></tr>`).join('')}</tbody></table></div>
+    <div class="scroll-x" style="margin-top:10px"><table class="t"><thead><tr><th>Fuente</th><th>Hallazgo</th></tr></thead><tbody>${o.src.map(x => `<tr><td style="min-width:150px"><b>${esc(x.n)}</b><br>${x.ok ? `<a href="${esc(x.link)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:12px">ver fuente</a>` : '<span class="sev" style="--sc:var(--muted)">sin respuesta</span>'}${x.link && !x.ok ? `<br><a href="${esc(x.link)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:12px">${esc(x.linkLabel || 'ver fuente')}</a>` : ''}${x.link2 ? `<br><a href="${esc(x.link2)}" target="_blank" rel="noopener" style="color:var(--accent);font-size:12px">buscar en Google Noticias</a>` : ''}</td><td>${esc(x.msg)}${x.list && x.list.length ? `<ul style="margin:6px 0 0;padding-left:18px;font-size:13px">${x.list.map(l => `<li><a href="${esc(l.u)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(l.t)}</a> <span class="muted">${esc(l.s)}</span></li>`).join('')}</ul>` : ''}</td></tr>`).join('')}</tbody></table></div>
     <div style="margin-top:12px"><button class="btn ghost" type="button" data-osint>Volver a consultar</button></div>`;
 }
 function qRun(){
