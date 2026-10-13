@@ -1121,6 +1121,36 @@ async function getJSON(url, ms){
   try { const r = await fetch(url, {signal:ctl.signal}); if (!r.ok) throw new Error('HTTP ' + r.status); return await r.json(); }
   finally { clearTimeout(t); }
 }
+// Todo en español: traducción de textos en inglés (Google Translate público, respaldo MyMemory)
+const EN_W = /\b(the|and|of|to|is|are|was|were|with|after|for|on|has|have|had|said|from|by|at|its|this|that|will|says|over|amid)\b/gi;
+const ES_W = /\b(el|la|los|las|de|del|que|y|en|por|con|una|un|se|para|tras|su|sus|al|es|fue)\b/gi;
+const looksEn = t => { const e = ((t || '').match(EN_W) || []).length, s = ((t || '').match(ES_W) || []).length; return e >= 2 && e > s * 1.2; };
+const TR = new Map();
+async function trChunk(q){
+  try { const d = await getJSON(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=es&dt=t&q=${encodeURIComponent(q)}`, 10000); const r = (d[0] || []).map(x => x[0]).join(''); if (r) return r; } catch(e){}
+  const parts = q.match(/[^.!?\n]{1,450}[.!?\n]?/g) || [q], out = [];
+  for (const x of parts){ const d = await getJSON(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(x)}&langpair=en|es`, 10000); const r = d.responseData && d.responseData.translatedText; if (!r || d.responseStatus != 200) throw 0; out.push(r); }
+  return out.join(' ');
+}
+// Devuelve el texto en español; si no se puede traducir, el original
+async function toEs(t, force){
+  t = (t || '').trim(); if (!t || inFrame || !(force || looksEn(t))) return t;
+  if (TR.has(t)) return TR.get(t);
+  const chunks = []; let cur = '';
+  for (const para of t.split('\n')){
+    const pieces = para.length > 1500 ? para.split(/(?<=[.!?])\s+/) : [para];
+    for (const pc of pieces){ if (cur && (cur.length + pc.length + 1) > 1500){ chunks.push(cur); cur = pc; } else cur = cur ? cur + '\n' + pc : pc; }
+  }
+  if (cur) chunks.push(cur);
+  try { const r = (await Promise.all(chunks.map(trChunk))).join('\n'); TR.set(t, r); return r; } catch(e){ return t; }
+}
+// Traducción local de lugares de USGS y eventos de NASA EONET
+const DIR = {N:'N', S:'S', E:'E', W:'O'};
+const usgsEs = pl => (pl || '').replace(/^(\d+(?:\.\d+)?) km ([NSEW]{1,3}) of (.+)$/, (m, k, d, w) => `a ${k} km al ${d.split('').map(c => DIR[c]).join('')} de ${w}`).replace(/\bMexico\b/g, 'México').replace(/\bGulf of California\b/g, 'Golfo de California').replace(/\boff the coast of\b/gi, 'frente a la costa de').replace(/\bregion\b/g, 'región');
+const EO = [[/Super Typhoon/g, 'Supertifón'], [/Tropical Storm/g, 'Tormenta tropical'], [/Tropical Depression/g, 'Depresión tropical'], [/Hurricane/g, 'Huracán'], [/Typhoon/g, 'Tifón'], [/Cyclone/g, 'Ciclón'], [/Wildfires?/g, 'Incendio'], [/Severe Storms/g, 'Tormentas severas'], [/Volcanoes/g, 'Volcanes'], [/Volcano/g, 'Volcán'], [/Floods/g, 'Inundaciones'], [/Earthquakes/g, 'Sismos'], [/Sea and Lake Ice/g, 'Hielo marino y lacustre'], [/Dust and Haze/g, 'Polvo y bruma'], [/Snow/g, 'Nieve'], [/Landslides/g, 'Deslaves'], [/Drought/g, 'Sequía'], [/Temperature Extremes/g, 'Temperaturas extremas'], [/Manmade/g, 'Causados por el ser humano'], [/Water Color/g, 'Color del agua'], [/Iceberg/g, 'Iceberg'], [/\bin\b/g, 'en'], [/\bCounty\b/g, 'condado'], [/\bPrescribed Fire\b/gi, 'Quema prescrita'], [/\bFire\b/g, 'Incendio']];
+const eoEs = t => EO.reduce((a, [r, v]) => a.replace(r, v), t || '');
+const eonetEs = d => { (d.events || []).forEach(e => { e.title = eoEs(e.title); (e.categories || []).forEach(c => c.title = eoEs(c.title)); }); return d; };
+const usgsFix = d => { (d.features || []).forEach(f => f.properties.place = usgsEs(f.properties.place)); return d; };
 const km = (a,b,c,d) => { const R = 6371, t = x => x*Math.PI/180, dl = t(c-a), dg = t(d-b); const h = Math.sin(dl/2)**2 + Math.cos(t(a))*Math.cos(t(c))*Math.sin(dg/2)**2; return 2*R*Math.asin(Math.sqrt(h)); };
 const fdate = ms => new Date(ms).toLocaleDateString('es-MX', {day:'numeric', month:'short'});
 async function qOsint(){
@@ -1221,7 +1251,7 @@ async function qOsint(){
   })());
   // 5. Sismos
   if (place && place.lat != null) jobs.push((async () => {
-    const d = await getJSON('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson');
+    const d = usgsFix(await getJSON('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson'));
     const near = (d.features || []).map(f => ({m:f.properties.mag, pl:f.properties.place, t:f.properties.time, u:f.properties.url, k:km(place.lat, place.lon, f.geometry.coordinates[1], f.geometry.coordinates[0])})).filter(x => x.k <= 400).sort((a,b) => b.m-a.m);
     near.slice(0,10).forEach(x => { const f = (d.features||[]).find(ft => ft.properties.url === x.u); if (f) Q.pts.push({lat:f.geometry.coordinates[1], lon:f.geometry.coordinates[0], t:`Sismo M${x.m.toFixed(1)} · ${x.pl}`, c:'#B3261E'}); });
     if (near[0] && near[0].m >= 6 && near[0].k <= 300){ add('elec', .6, 'sismo cercano'); add('carr', .5, 'sismo cercano'); }
@@ -1232,7 +1262,7 @@ async function qOsint(){
   // 6. Eventos naturales activos
   if (place && place.lat != null) jobs.push((async () => {
     const b = [place.lon-6, place.lat+6, place.lon+6, place.lat-6].map(v => v.toFixed(2)).join(',');
-    const d = await getJSON(`https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=20&bbox=${b}`);
+    const d = eonetEs(await getJSON(`https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=20&bbox=${b}`));
     const last = e => { const g = (e.geometry || []).filter(x => x.type === 'Point'); return g.length ? g[g.length-1].coordinates : null; };
     const evts = (d.events || []).map(e => { const c = last(e); return {...e, k: c ? km(place.lat, place.lon, c[1], c[0]) : Infinity}; }).filter(e => e.k <= 1000).sort((a,b) => a.k - b.k);
     evts.forEach(e => { const c = last(e); if (c) Q.pts.push({lat:c[1], lon:c[0], t:`${e.title} (${Math.round(e.k)} km)`, c:'#CC5A24'}); });
@@ -1516,15 +1546,18 @@ async function nOutletSearch(){
   }));
   all.sort((a,b) => (b.d || 0) - (a.d || 0));
   N.items = all.slice(0, 30);
+  const en = N.items.filter(i => i.lang === 'en');
+  if (en.length){ out.innerHTML = '<li><div class="muted">Traduciendo al español las notas en inglés…</div></li>'; await Promise.all(en.map(async i => { const t = await toEs(i.t, true); i.tr = t !== i.t; i.t = t; })); }
   const failed = res.filter(r => !r.items).map(r => r.o[1]);
   const note = `<li><div class="muted">${res.length - failed.length} de ${res.length} cadenas respondieron${failed.length ? ' · sin respuesta: ' + esc(failed.join(', ')) : ''}.</div></li>`;
-  out.innerHTML = (N.items.length ? N.items.map((i,k) => `<li><div><a href="${esc(i.u)}" target="_blank" rel="noopener">${esc(i.t)}</a><small><span class="tag">${esc(i.src)}</span>${esc(i.country)}${i.lang === 'en' ? ' · inglés' : ''}${i.d && !isNaN(i.d) ? ' · ' + i.d.toLocaleString('es-MX', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}) : ''}</small></div><button class="btn" type="button" data-n="${k}">Analizar</button></li>`).join('')
+  out.innerHTML = (N.items.length ? N.items.map((i,k) => `<li><div><a href="${esc(i.u)}" target="_blank" rel="noopener">${esc(i.t)}</a><small><span class="tag">${esc(i.src)}</span>${esc(i.country)}${i.lang === 'en' ? (i.tr ? ' · traducido del inglés' : ' · en inglés') : ''}${i.d && !isNaN(i.d) ? ' · ' + i.d.toLocaleString('es-MX', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}) : ''}</small></div><button class="btn" type="button" data-n="${k}">Analizar</button></li>`).join('')
     : `<li><div class="muted">Sin notas de ${esc(NDOM[N.dom][0].toLowerCase())}${kw ? ' con «' + esc($('#n-q').value.trim()) + '»' : ''} en el periodo. Prueba otro dominio, periodo o más cadenas.</div></li>`) + note;
 }
-$('#n-out').onclick = e => {
+$('#n-out').onclick = async e => {
   const b = e.target.closest('[data-n]'); if (!b) return;
   const i = N.items[+b.dataset.n];
-  $('#q-text').value = `${i.t}.${i.desc && i.desc !== i.t ? ' ' + i.desc : ''} Fuente: ${i.src}${i.country ? ' (' + i.country + ')' : ''}.`;
+  if (i.lang === 'en' && i.desc && !i.descEs){ b.disabled = true; b.textContent = 'Traduciendo…'; i.desc = await toEs(i.desc, true); i.descEs = true; b.disabled = false; b.textContent = 'Analizar'; }
+  $('#q-text').value = `${i.t}.${i.desc && i.desc !== i.t ? ' ' + i.desc : ''} Fuente: ${i.src}${i.country ? ' (' + i.country + ')' : ''}${i.tr ? ', traducido del inglés' : ''}.`;
   qEx = -1; qRun(); $('#q-out').scrollIntoView({behavior:'smooth', block:'start'});
 };
 // Enlaces: si se pega un enlace, se lee su contenido y se analiza en todos los módulos
@@ -1587,8 +1620,11 @@ async function ingestLink(ta, u){
   m.textContent = 'Leyendo el enlace…'; ta.disabled = true;
   const r = await linkText(u).catch(() => null); ta.disabled = false;
   if (!r || (r.text + r.title).trim().length < 15){ m.className = 'linkmsg err'; m.innerHTML = `No pude leer el contenido de <a href="${esc(u)}" target="_blank" rel="noopener">este enlace</a> (el sitio no lo permite o pide iniciar sesión). Ábrelo, copia el texto y pégalo aquí.`; return false; }
-  const txt = `${r.title ? r.title.trim() + '.\n' : ''}${r.text.trim()}\n\nFuente: ${r.src}${r.date ? ' · ' + r.date : ''} · ${u}`;
-  m.textContent = `Contenido leído de ${r.src}. Analizado en todos los módulos.`;
+  m.textContent = 'Contenido leído; revisando idioma…';
+  const tt = await toEs(r.title), tx = await toEs(r.text), trd = tt !== (r.title || '').trim() || tx !== r.text.trim();
+  const dt = r.date && !isNaN(new Date(r.date)) ? new Date(r.date).toLocaleString('es-MX', {dateStyle:'long', timeStyle:'short'}) : '';
+  const txt = `${tt ? tt + '.\n' : ''}${tx}\n\nFuente: ${r.src}${dt ? ' · ' + dt : ''}${trd ? ' · traducido del inglés' : ''} · ${u}`;
+  m.textContent = `Contenido leído de ${r.src}${trd ? ' y traducido del inglés' : ''}. Analizado en todos los módulos.`;
   $('#q-text').value = txt; qEx = -1; qRun();
   ta.value = txt;
   if (ta.id === 'a-sit'){ A.sit = txt; aRender(); }
@@ -1599,7 +1635,11 @@ async function ingestLink(ta, u){
   const ta = document.getElementById(id); if (!ta) return;
   ta.addEventListener('paste', e => { const t = (e.clipboardData || window.clipboardData).getData('text'); const u = onlyLink(t); if (u && !onlyLink(ta.value.trim()) && ta.value.trim().length < 15){ e.preventDefault(); ta.value = u; ingestLink(ta, u); } });
 });
-$('#q-go').onclick = async () => { qEx = -1; const u = onlyLink($('#q-text').value.trim()); if (u && !(await ingestLink($('#q-text'), u))) return; if (!u) qRun(); $('#q-out').scrollIntoView({behavior:'smooth', block:'start'}); };
+$('#q-go').onclick = async () => {
+  qEx = -1; const ta = $('#q-text'), u = onlyLink(ta.value.trim());
+  if (u && !(await ingestLink(ta, u))) return;
+  if (!u && looksEn(ta.value)){ const m = linkMsg(ta); m.className = 'linkmsg'; m.textContent = 'Traduciendo al español…'; const es = await toEs(ta.value); if (es !== ta.value.trim()){ ta.value = es + '\n\n(Traducido del inglés)'; m.textContent = 'Texto traducido del inglés y analizado.'; } else m.textContent = ''; }
+  if (!u) qRun(); $('#q-out').scrollIntoView({behavior:'smooth', block:'start'}); };
 $('#q-text').oninput = () => { qEx = -1; };
 $('#q-ex').onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; qEx = +b.dataset.i; $('#q-text').value = QEX[qEx].t; qRun(); };
 $('#q-out').addEventListener('click', e => { if (e.target.closest('[data-osint]')){ qOsint(); return; } const b = e.target.closest('[data-go]'); if (b){ showTab(b.dataset.go); window.scrollTo({top:0}); } });
@@ -1746,7 +1786,7 @@ function vAisSub(){
 // Sismos 24 h
 async function vQuakes(){
   try {
-    const d = await getJSON('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson');
+    const d = usgsFix(await getJSON('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson'));
     V.g.quake.clearLayers(); vClear('eq-');
     const b = V.map.getBounds();
     (d.features || []).forEach(f => {
@@ -1760,7 +1800,7 @@ async function vQuakes(){
 // Eventos naturales activos
 async function vEonet(){
   try {
-    const d = await getJSON('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=20');
+    const d = eonetEs(await getJSON('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=20'));
     V.g.eonet.clearLayers(); vClear('ev-');
     const b = V.map.getBounds();
     (d.events || []).forEach(e => {
