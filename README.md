@@ -8,7 +8,7 @@ Suite académica de análisis para operaciones multidominio. Un solo archivo (`i
 
 Pega una noticia en **Análisis rápido** y pulsa **Analizar noticia**. El sitio muestra qué se afectó, qué puede venir después, qué hacer primero y qué tan confiable parece la noticia, con un reporte listo para copiar o imprimir.
 
-¿No tienes la noticia? Debajo del cuadro de texto puedes buscarla en Google Noticias, nacional o internacional, filtrada por dominio (terrestre, marítimo, aéreo, espacial, ciberespacio, cognitivo) y con palabra clave opcional. El botón **Analizar** de cada resultado la pasa directo al análisis.
+¿No tienes la noticia? Debajo del cuadro de texto puedes buscarla. La búsqueda internacional lee directo el RSS de cadenas como CNN en Español, BBC Mundo, DW, France 24, El País, Europa Press, Euronews, Infobae, CNN International, Al Jazeera, The Guardian y South China Morning Post; la nacional usa Google Noticias México. Ambas se filtran filtrada por dominio (terrestre, marítimo, aéreo, espacial, ciberespacio, cognitivo) y con palabra clave opcional. El botón **Analizar** de cada resultado la pasa directo al análisis.
 
 Los cuatro módulos se alimentan de la misma noticia: la cascada (M1) califica los cursos de acción (M3) y prepara un ejercicio de mesa (M2) que arranca con la noticia; la confiabilidad del texto (M4) ajusta la legitimidad y el peso de la comunicación.
 

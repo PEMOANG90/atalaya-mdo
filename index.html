@@ -198,6 +198,8 @@ mark{background:color-mix(in srgb,var(--mc) 22%,transparent);color:inherit;borde
 .nlist a{color:var(--ink);text-decoration:none;font-weight:500}
 .nlist a:hover{text-decoration:underline}
 .nlist small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.nlist .tag{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:11px;border:1px solid var(--line);border-radius:3px;padding:0 4px;margin-right:4px;color:var(--muted)}
+#n-outlets .chipbtn small{opacity:.75;font-size:11px;margin-left:4px}
 .nlist .btn{flex:none;padding:5px 10px;font-size:13px}
 .tabsep{align-self:center;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 6px 0 14px;border-left:1px solid var(--line);white-space:nowrap}
 .q-level{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
@@ -316,6 +318,7 @@ footer .wrap{display:grid;gap:6px;max-width:1180px}
     <div class="nsearch">
       <span class="eyebrow">¿No tienes la noticia? Búscala por dominio</span>
       <div class="chips" id="n-scope" role="group" aria-label="Ámbito"><button class="chipbtn" type="button" data-s="mx" aria-pressed="false">Nacional</button><button class="chipbtn" type="button" data-s="int" aria-pressed="true">Internacional</button></div>
+      <div class="chips" id="n-outlets" role="group" aria-label="Cadenas internacionales"></div>
       <div class="chips" id="n-dom" role="group" aria-label="Dominio"></div>
       <div class="nrow"><input id="n-q" type="search" placeholder="Palabra clave opcional: Mar Rojo, Taiwán, Ucrania…" aria-label="Palabra clave"><select id="n-when" aria-label="Periodo"><option value="1d">Últimas 24 h</option><option value="7d" selected>Últimos 7 días</option><option value="30d">Últimos 30 días</option></select><button class="btn" id="n-go" type="button">Buscar noticias</button></div>
       <ul class="nlist" id="n-out"></ul>
@@ -739,6 +742,23 @@ const EVENTS = [
   {kw:['sismo','terremoto'], nodes:{elec:.7, carr:.7, hosp:.5, puerto:.5}},
   {kw:['tormenta solar','tormenta geomagnetica','eyeccion de masa coronal'], nodes:{gnss:.7, satcom:.8, elec:.4}}
 ];
+// Términos en inglés para notas de cadenas internacionales
+const KW_EN = {
+  gnss:['gps jamming','gps interference','satellite navigation'], satcom:['satellite communications','satellite link'],
+  redcc:['command and control','military communications'], scada:['cyberattack','cyber attack','hackers','hacked'],
+  dns:['data breach','servers','websites','cloud outage'], elec:['blackout','power outage','power grid','power station','substation','electricity'],
+  carr:['highway','roadblock','bridge','landslide'], comb:['fuel','oil spill','pipeline','refinery','tanker','crude oil','gas supply'],
+  hosp:['hospital','wounded','injured','casualties','killed','dead'], puerto:['ports','port of','seaport','container','shipping','dock','harbor','harbour'],
+  vts:['strait','shipping lane','maritime traffic','collision at sea','ran aground'], patr:['navy','naval','coast guard','warship','patrol','piracy','pirates','houthi','smuggling'],
+  pesca:['fishermen','fishing boat','fishing vessel'], aero:['airport','flight','airline','aircraft','airplane','airliner','plane crash'],
+  atc:['airspace','air traffic','drone','drones'], sar:['rescue','search and rescue','shipwreck','missing'],
+  voc:['spokesperson','statement','press conference','officials said'], rum:['disinformation','misinformation','fake news','propaganda','deepfake','social media'],
+  conf:['protest','protests','panic','riot','unrest','looting']
+};
+Object.keys(KW_EN).forEach(k => KW[k].push(...KW_EN[k]));
+EVENTS[0].kw.push('hurricane','tropical storm','cyclone','typhoon','flood','flooding');
+EVENTS[1].kw.push('earthquake');
+EVENTS[2].kw.push('solar storm','geomagnetic storm','coronal mass ejection');
 const kwRe = t => new RegExp('(?<![a-z0-9])' + escRe(t), 'g');
 function cParse(txt){
   const n = Array.from(txt).map(normChar).join('');
@@ -1410,27 +1430,61 @@ const NDOM = [
   ['Ciberespacio', '(ciberataque OR ransomware OR hackeo OR "ataque informático" OR ciberseguridad)'],
   ['Cognitivo', '(desinformación OR "noticias falsas" OR propaganda OR "operación de influencia" OR bulos)']
 ];
-const N = {scope:'int', dom:0, items:[]};
+// Cadenas internacionales leídas directo de su RSS (no de Google)
+const OUTLETS = [
+  ['cnnes', 'CNN en Español', 'EE. UU.', 'es', 'https://cnnespanol.cnn.com/feed/', 1],
+  ['bbc', 'BBC Mundo', 'Reino Unido', 'es', 'https://feeds.bbci.co.uk/mundo/rss.xml', 1],
+  ['dw', 'DW', 'Alemania', 'es', 'https://rss.dw.com/rdf/rss-sp-all', 1],
+  ['f24', 'France 24', 'Francia', 'es', 'https://www.france24.com/es/rss', 1],
+  ['elpais', 'El País', 'España', 'es', 'https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/internacional/portada', 1],
+  ['epress', 'Europa Press', 'España', 'es', 'https://www.europapress.es/rss/rss.aspx?ch=00069', 0],
+  ['euronews', 'Euronews', 'Unión Europea', 'es', 'https://es.euronews.com/rss', 0],
+  ['infobae', 'Infobae', 'Argentina', 'es', 'https://www.infobae.com/arc/outboundfeeds/rss/?outputType=xml', 0],
+  ['cnn', 'CNN International', 'EE. UU.', 'en', 'http://rss.cnn.com/rss/edition_world.rss', 1],
+  ['aje', 'Al Jazeera', 'Catar', 'en', 'https://www.aljazeera.com/xml/rss/all.xml', 1],
+  ['guardian', 'The Guardian', 'Reino Unido', 'en', 'https://www.theguardian.com/world/rss', 0],
+  ['scmp', 'South China Morning Post', 'Hong Kong', 'en', 'https://www.scmp.com/rss/91/feed', 0]
+];
+// Filtro por dominio sobre título y resumen (español e inglés, sin acentos)
+const NDOMRE = [null,
+  /\b(ejercit\w*|fronter\w*|fuerzas armadas|combat\w*|tropas|ofensiva|militar\w*|infraestructura critica|army|troops|border|offensive|ground forces|military)\b/,
+  /\b(armada|naval\w*|buques?|barcos?|puertos?|estrechos?|pirat\w*|guardia costera|maritim\w*|petroleros?|navy|ships?|vessels?|ports?|straits?|coast guard|tankers?|houthis?|huties)\b/,
+  /\b(espacio aereo|fuerza aerea|drones?|aeropuertos?|aeronaves?|aviones?|misil\w*|airspace|air force|airports?|aircraft|missiles?|fighter jets?)\b/,
+  /\b(satelit\w*|gps|gnss|antisatelit\w*|clima espacial|cohetes?|orbita\w*|satellites?|space|rockets?|orbit\w*)\b/,
+  /\b(ciber\w*|ransomware|hacke\w*|hackers?|ataque informatico|malware|cyber\w*|hack\w*|data breach)\b/,
+  /\b(desinformacion|noticias falsas|propaganda|influencia|bulos?|fake news|disinformation|misinformation|deepfakes?)\b/
+];
+const N = {scope:'int', dom:0, items:[], on:new Set(OUTLETS.filter(o => o[5]).map(o => o[0]))};
+const nStrip = h => { const d = document.createElement('div'); d.innerHTML = h || ''; return d.textContent.replace(/\s+/g, ' ').trim(); };
+const nNorm = t => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+function nOutlets(){
+  const el = $('#n-outlets'); el.hidden = N.scope !== 'int';
+  el.innerHTML = OUTLETS.map(o => `<button class="chipbtn" type="button" data-o="${o[0]}" aria-pressed="${N.on.has(o[0])}">${esc(o[1])}<small>${esc(o[2])}${o[3] === 'en' ? ' · inglés' : ''}</small></button>`).join('');
+}
+nOutlets();
+$('#n-outlets').onclick = e => { const b = e.target.closest('[data-o]'); if (!b) return; const k = b.dataset.o; N.on.has(k) ? N.on.delete(k) : N.on.add(k); b.setAttribute('aria-pressed', N.on.has(k)); };
 $('#n-dom').innerHTML = NDOM.map((d,i) => `<button class="chipbtn" type="button" data-d="${i}" aria-pressed="${i===0}">${d[0]}</button>`).join('');
-$('#n-scope').onclick = e => { const b = e.target.closest('[data-s]'); if (!b) return; N.scope = b.dataset.s; $('#n-scope').querySelectorAll('[data-s]').forEach(x => x.setAttribute('aria-pressed', x === b)); nSearch(); };
+$('#n-scope').onclick = e => { const b = e.target.closest('[data-s]'); if (!b) return; N.scope = b.dataset.s; $('#n-scope').querySelectorAll('[data-s]').forEach(x => x.setAttribute('aria-pressed', x === b)); nOutlets(); nSearch(); };
 $('#n-dom').onclick = e => { const b = e.target.closest('[data-d]'); if (!b) return; N.dom = +b.dataset.d; $('#n-dom').querySelectorAll('[data-d]').forEach(x => x.setAttribute('aria-pressed', x === b)); nSearch(); };
 $('#n-go').onclick = () => nSearch();
 $('#n-q').onkeydown = e => { if (e.key === 'Enter') nSearch(); };
 async function rssItems(rss){
   try {
     const j = await getJSON(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rss)}`, 12000);
-    if (j.status === 'ok') return (j.items || []).map(i => ({t:i.title, u:i.link, d:i.pubDate ? new Date(i.pubDate.replace(' ','T') + 'Z') : null}));
+    if (j.status === 'ok') return (j.items || []).map(i => ({t:i.title, u:i.link, d:i.pubDate ? new Date(i.pubDate.replace(' ','T') + 'Z') : null, desc:i.description || ''}));
   } catch(e){}
   const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 12000);
   try {
     const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(rss)}`, {signal:ctl.signal});
     const xml = new DOMParser().parseFromString(await r.text(), 'text/xml');
-    if (!xml.querySelector('rss')) return null;
-    return [...xml.querySelectorAll('item')].map(i => { const g = k => (i.querySelector(k)||{}).textContent || ''; return {t:g('title'), u:g('link'), d:g('pubDate') ? new Date(g('pubDate')) : null, src:g('source')}; });
+    const its = [...xml.getElementsByTagName('item')];
+    if (!its.length && !xml.querySelector('rss')) return null;
+    return its.map(i => { const g = k => (i.getElementsByTagName(k)[0]||{}).textContent || ''; const dt = g('pubDate') || g('dc:date'); return {t:g('title'), u:g('link'), d:dt ? new Date(dt) : null, src:g('source'), desc:g('description')}; });
   } catch(e){ return null; } finally { clearTimeout(tm); }
 }
 async function nSearch(){
-  const kw = $('#n-q').value.trim(), when = $('#n-when').value, intl = N.scope === 'int';
+  if (N.scope === 'int') return nOutletSearch();
+  const kw = $('#n-q').value.trim(), when = $('#n-when').value, intl = false;
   const q = `${kw ? (kw.includes(' ') && !kw.includes('"') ? '"' + kw + '"' : kw) + ' ' : ''}${NDOM[N.dom][1]}${intl ? ' -México' : ' México'} when:${when}`;
   const ed = intl ? 'hl=es-419&gl=US&ceid=US:es-419' : 'hl=es-419&gl=MX&ceid=MX:es-419';
   const web = `https://news.google.com/search?q=${encodeURIComponent(q)}&${ed}`;
@@ -1442,10 +1496,32 @@ async function nSearch(){
   out.innerHTML = N.items.length ? N.items.map((i,k) => `<li><div><a href="${esc(i.u)}" target="_blank" rel="noopener">${esc(i.t)}</a><small>${esc(i.src)}${i.d && !isNaN(i.d) ? ' · ' + i.d.toLocaleString('es-MX', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}) : ''}</small></div><button class="btn" type="button" data-n="${k}">Analizar</button></li>`).join('')
     : `<li><div class="muted">Sin resultados para ${esc(NDOM[N.dom][0].toLowerCase())}${kw ? ' con «' + esc(kw) + '»' : ''}. Prueba otro periodo o palabra clave.</div></li>`;
 }
+async function nOutletSearch(){
+  const out = $('#n-out'), kw = nNorm($('#n-q').value.trim()), days = {'1d':1, '7d':7, '30d':30}[$('#n-when').value], re = NDOMRE[N.dom];
+  const sel = OUTLETS.filter(o => N.on.has(o[0]));
+  if (!sel.length){ out.innerHTML = '<li><div class="muted">Selecciona al menos una cadena.</div></li>'; return; }
+  if (inFrame){ out.innerHTML = '<li><div class="muted">La vista previa de Claude bloquea consultas externas; usa la versión publicada en GitHub Pages.</div></li>'; return; }
+  out.innerHTML = `<li><div class="muted">Consultando ${sel.length} cadena${sel.length > 1 ? 's' : ''}…</div></li>`;
+  const res = await Promise.all(sel.map(async o => ({o, items: await rssItems(o[4])})));
+  const since = Date.now() - days*864e5, all = [];
+  res.forEach(({o, items}) => (items || []).forEach(i => {
+    const desc = nStrip(i.desc).slice(0, 600), hay = nNorm(nStrip(i.t) + ' ' + desc);
+    if (i.d && !isNaN(i.d) && i.d < since) return;
+    if (re && !re.test(hay)) return;
+    if (kw && !hay.includes(kw)) return;
+    all.push({t:nStrip(i.t), u:i.u, d:i.d, src:o[1], country:o[2], lang:o[3], desc});
+  }));
+  all.sort((a,b) => (b.d || 0) - (a.d || 0));
+  N.items = all.slice(0, 30);
+  const failed = res.filter(r => !r.items).map(r => r.o[1]);
+  const note = `<li><div class="muted">${res.length - failed.length} de ${res.length} cadenas respondieron${failed.length ? ' · sin respuesta: ' + esc(failed.join(', ')) : ''}.</div></li>`;
+  out.innerHTML = (N.items.length ? N.items.map((i,k) => `<li><div><a href="${esc(i.u)}" target="_blank" rel="noopener">${esc(i.t)}</a><small><span class="tag">${esc(i.src)}</span>${esc(i.country)}${i.lang === 'en' ? ' · inglés' : ''}${i.d && !isNaN(i.d) ? ' · ' + i.d.toLocaleString('es-MX', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}) : ''}</small></div><button class="btn" type="button" data-n="${k}">Analizar</button></li>`).join('')
+    : `<li><div class="muted">Sin notas de ${esc(NDOM[N.dom][0].toLowerCase())}${kw ? ' con «' + esc($('#n-q').value.trim()) + '»' : ''} en el periodo. Prueba otro dominio, periodo o más cadenas.</div></li>`) + note;
+}
 $('#n-out').onclick = e => {
   const b = e.target.closest('[data-n]'); if (!b) return;
   const i = N.items[+b.dataset.n];
-  $('#q-text').value = `${i.t}${i.src ? '. Fuente: ' + i.src : ''}.`;
+  $('#q-text').value = `${i.t}.${i.desc && i.desc !== i.t ? ' ' + i.desc : ''} Fuente: ${i.src}${i.country ? ' (' + i.country + ')' : ''}.`;
   qEx = -1; qRun(); $('#q-out').scrollIntoView({behavior:'smooth', block:'start'});
 };
 $('#q-go').onclick = () => { qEx = -1; qRun(); $('#q-out').scrollIntoView({behavior:'smooth', block:'start'}); };
