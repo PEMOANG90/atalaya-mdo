@@ -16,7 +16,7 @@ El botón **Consultar fuentes abiertas** busca, sin claves ni cuentas, informaci
 
 | Fuente | Qué aporta |
 | --- | --- |
-| GDELT | Cobertura en medios de los últimos 7 días (corroboración) |
+| GDELT y Google Noticias | Cobertura en medios de los últimos 7 días (corroboración); si GDELT no responde se usa Google Noticias |
 | Open-Meteo | Viento, lluvia y oleaje en el lugar detectado |
 | NOAA SWPC | Clima espacial (afectación a GPS y satélites) |
 | USGS | Sismos cercanos de magnitud 4.5 o mayor |

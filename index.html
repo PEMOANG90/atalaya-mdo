@@ -1063,11 +1063,36 @@ async function qOsint(){
       if (i) await new Promise(r => setTimeout(r, 5500));
       try { d = await tryQ(q); } catch(e){ lastErr = e.message; }
     }
-    if (!d) return {n:'GDELT · medios', ok:false, link:gnews, linkLabel:'buscar en Google Noticias', msg:`No se pudo consultar GDELT (${lastErr}). Puedes verificar la cobertura manualmente en Google Noticias.`};
+    if (!d){
+      // Respaldo: Google Noticias por RSS, leído mediante servicios públicos que permiten la consulta desde el navegador
+      const gq = (pl ? `"${pl}" ` : '') + (terms.length > 1 ? `(${terms.join(' OR ')})` : terms[0]) + ' when:7d';
+      const rss = `https://news.google.com/rss/search?q=${encodeURIComponent(gq)}&hl=es-419&gl=MX&ceid=MX:es-419`;
+      let items = null, via = '';
+      try {
+        const j = await getJSON(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rss)}`, 12000);
+        if (j.status === 'ok'){ items = (j.items || []).map(i => ({t:i.title, u:i.link, d:i.pubDate})); via = 'rss2json'; }
+      } catch(e){}
+      if (!items){
+        try {
+          const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 12000);
+          const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(rss)}`, {signal:ctl.signal}); clearTimeout(tm);
+          const xml = new DOMParser().parseFromString(await r.text(), 'text/xml');
+          const its = [...xml.querySelectorAll('item')];
+          if (xml.querySelector('rss')) { items = its.map(i => ({t:(i.querySelector('title')||{}).textContent, u:(i.querySelector('link')||{}).textContent, d:(i.querySelector('pubDate')||{}).textContent, src:(i.querySelector('source')||{}).textContent})); via = 'allorigins'; }
+        } catch(e){}
+      }
+      if (!items) return {n:'Medios · GDELT / Google Noticias', ok:false, link:gnews, linkLabel:'buscar en Google Noticias', msg:`No se pudo consultar la cobertura en medios (GDELT: ${lastErr}; Google Noticias tampoco respondió). Puedes verificarla manualmente.`};
+      const srcOf = i => i.src || (i.t && i.t.includes(' - ') ? i.t.split(' - ').pop() : '');
+      const outlets = [...new Set(items.map(srcOf).filter(Boolean))];
+      Q.corrob = {n:items.length, doms:outlets.length};
+      return {n:'Medios · Google Noticias', ok:true, link:gnews,
+        msg: items.length ? `${items.length} nota${items.length>1?'s':''} en ${outlets.length} medio${outlets.length!==1?'s':''} durante los últimos 7 días (búsqueda: ${gq}). GDELT no respondió, se usó Google Noticias.` : `Ningún medio reporta el tema en los últimos 7 días (búsqueda: ${gq}).`,
+        list: items.slice(0,5).map(i => ({t: srcOf(i) && i.t.endsWith(' - ' + srcOf(i)) ? i.t.slice(0, -(srcOf(i).length + 3)) : i.t, u:i.u, s:[srcOf(i), i.d ? fdate(Date.parse(i.d)) : ''].filter(Boolean).join(' · ')}))};
+    }
     const arts = (d.articles || []);
     const doms = [...new Set(arts.map(a => a.domain))];
     Q.corrob = {n:arts.length, doms:doms.length};
-    return {n:'GDELT · medios', ok:true, link:`https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(q)}&mode=artlist&timespan=7d`,
+    return {n:'Medios · GDELT', ok:true, link:`https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(q)}&mode=artlist&timespan=7d`,
       link2:gnews, msg: arts.length ? `${arts.length} nota${arts.length>1?'s':''} en ${doms.length} medio${doms.length>1?'s':''} durante los últimos 7 días (búsqueda: ${q}).` : `Ningún medio indexado reporta el tema en los últimos 7 días (búsqueda: ${q}).`,
       list: arts.slice(0,5).map(a => ({t:a.title, u:a.url, s:`${a.domain}`}))};
   })());
@@ -1127,7 +1152,7 @@ async function qOsint(){
   const names = ['GDELT · medios','Open-Meteo · clima y oleaje','NOAA SWPC · clima espacial','USGS · sismos','NASA EONET · eventos naturales','Wikipedia · contexto del lugar'];
   res.forEach((r,i) => src.push(r.status === 'fulfilled' ? r.value : {n: null, ok:false, err:true, msg: r.reason && r.reason.name === 'AbortError' ? 'La fuente tardó demasiado en responder.' : 'No se pudo consultar.'}));
   // nombra las fuentes fallidas según el orden en que se lanzaron
-  const launched = ['GDELT · medios'].concat(place && place.lat != null ? ['Open-Meteo · clima y oleaje'] : [], ['NOAA SWPC · clima espacial'], place && place.lat != null ? ['USGS · sismos','NASA EONET · eventos naturales'] : [], place ? ['Wikipedia · contexto del lugar'] : []);
+  const launched = ['Medios · GDELT / Google Noticias'].concat(place && place.lat != null ? ['Open-Meteo · clima y oleaje'] : [], ['NOAA SWPC · clima espacial'], place && place.lat != null ? ['USGS · sismos','NASA EONET · eventos naturales'] : [], place ? ['Wikipedia · contexto del lugar'] : []);
   src.forEach((x,i) => { if (!x.n) x.n = launched[i]; });
   if (Q.corrob) notes.push(Q.corrob.n >= 3 && Q.corrob.doms >= 2 ? `La noticia está corroborada por ${Q.corrob.doms} medios distintos, lo que reduce el peso de las señales de manipulación en la evaluación de respuestas.` : Q.corrob.n === 0 ? 'Ningún medio indexado reporta el tema: trata la noticia como no confirmada.' : 'La cobertura en medios es escasa: confirma con la autoridad responsable.');
   Q.osint = {at:new Date(), place, src, notes, allFail: src.every(x => !x.ok)};
