@@ -36,7 +36,7 @@ Mapa de conciencia situacional en tiempo real, inspirado en tableros OSINT como 
 
 | Capa | Fuente | Actualización |
 | --- | --- | --- |
-| Aeronaves (ADS-B) | adsb.lol, respaldo OpenSky | 30 s |
+| Aeronaves (ADS-B) | adsb.lol, respaldos airplanes.live, adsb.fi y OpenSky | 30 s |
 | Buques (AIS) | AISStream (clave gratuita del usuario) | continuo |
 | Satélites GPS | CelesTrak + satellite.js | 10 s |
 | Sismos 24 h | USGS | 5 min |
